@@ -8,8 +8,8 @@ class UserAdmin(BaseUserAdmin):
     model = User
 
     # Fields to display in the user list page
-    list_display = ("email", "fullname", "is_staff", "is_active")
-    list_filter = ("is_staff", "is_active")
+    list_display = ("email", "fullname", "is_admin", "is_active")
+    list_filter = ("is_admin", "is_active")
     search_fields = ("email", "fullname")
     ordering = ("email",)
 
@@ -17,13 +17,13 @@ class UserAdmin(BaseUserAdmin):
     fieldsets = (
         (None, {"fields": ("email", "password")}),
         (_("Personal info"), {"fields": ("fullname",)}),
-        (_("Permissions"), {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")})
+        (_("Permissions"), {"fields": ("is_active", "is_admin", "is_superuser", "groups", "user_permissions")})
     )
 
     # Fields for creating a new user in admin
     add_fieldsets = (
         (None, {
             "classes": ("wide",),
-            "fields": ("email", "fullname", "password1", "password2", "is_active", "is_staff"),
+            "fields": ("email", "fullname", "password1", "password2", "is_active", "is_admin"),
         }),
     )

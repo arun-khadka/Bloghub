@@ -129,7 +129,7 @@ export function AuthProvider({ children }) {
               )
               .filter((article) => article); // Remove failed fetches
 
-            console.log("✅ Complete articles data:", completeArticles);
+            console.log("Complete articles data:", completeArticles);
 
             // Combine bookmark info with complete article data
             const bookmarksWithArticles = bookmarksData.map((bookmark) => {
@@ -283,6 +283,14 @@ export function AuthProvider({ children }) {
   // ------------------------------
   // AUTH FUNCTIONS
   // ------------------------------
+  const persistSession = (tokens, userData) => {
+    localStorage.setItem("accessToken", tokens.access);
+    localStorage.setItem("refreshToken", tokens.refresh);
+    localStorage.setItem("user", JSON.stringify(userData));
+    setUser(userData);
+    console.log('User set in state:', userData); 
+  };
+
   const login = async (email, password) => {
     const res = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/auth/login/`,
@@ -297,15 +305,30 @@ export function AuthProvider({ children }) {
     if (!res.ok) throw new Error(data.message || "Login failed");
 
     const { tokens, user } = data.data;
-    localStorage.setItem("accessToken", tokens.access);
-    localStorage.setItem("refreshToken", tokens.refresh);
-    localStorage.setItem("user", JSON.stringify(user));
-
-    setUser(user);
-
+    persistSession(tokens, user);
     // Load bookmarks after login
     await fetchBookmarks();
 
+    return user;
+  };
+
+  const adminLogin = async (email, password) => {
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/auth/admin/login/`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      }
+    );
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Admin login failed");
+
+    const { tokens, user } = data.data;
+    persistSession(tokens, user);
+
+    await fetchBookmarks();
     return user;
   };
 
@@ -323,12 +346,7 @@ export function AuthProvider({ children }) {
     if (!res.ok) throw new Error(data.message || "Signup failed");
 
     const { tokens, user } = data.data;
-    localStorage.setItem("accessToken", tokens.access);
-    localStorage.setItem("refreshToken", tokens.refresh);
-    localStorage.setItem("user", JSON.stringify(user));
-
-    setUser(user);
-
+    persistSession(tokens, user);
     // Load bookmarks after signup
     await fetchBookmarks();
 
@@ -491,6 +509,7 @@ export function AuthProvider({ children }) {
         user,
         loading,
         login,
+        adminLogin,
         signup,
         logout,
         updateProfile,

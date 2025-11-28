@@ -8,10 +8,6 @@ from .models import Article
 from authors.models import Author
 from .serializers import ArticleSerializer
 
-
-# -------------------------
-# CREATE ARTICLE
-# -------------------------
 def success_response(data, message="Success", code=status.HTTP_200_OK):
     return Response(
         {"success": True, "data": data, "message": message, "errors": {}}, status=code
@@ -39,7 +35,7 @@ class ArticleCreateView(APIView):
         try:
             author = Author.objects.get(user=user)
         except Author.DoesNotExist:
-            if not user.is_staff:
+            if not user.is_admin:
                 return error_response(
                     "Only authors or admin can create articles",
                     code=status.HTTP_403_FORBIDDEN,
@@ -64,9 +60,7 @@ class MyArticlesView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        """
-        Get all articles by the currently logged-in author
-        """
+
         try:
             # Get the author profile for the current user
             author = Author.objects.get(user=request.user)
@@ -126,9 +120,7 @@ class ArticlesByAuthorView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request, author_id):
-        """
-        Retrieve all published articles by author ID - SIMPLE VERSION
-        """
+
         try:
             # Check if author exists
             author = Author.objects.get(id=author_id)
@@ -323,7 +315,7 @@ class ArticleDeleteByIdView(APIView):
         article = get_object_or_404(Article, id=id, is_deleted=False)
 
         # Check if user owns the article or is admin
-        if article.author.user != request.user and not request.user.is_staff:
+        if article.author.user != request.user and not request.user.is_admin:
             return Response(
                 {
                     "success": False,

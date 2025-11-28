@@ -2,13 +2,17 @@ from django.urls import path
 from .views import (
     ArticlesByCategoryAPIView,
     ArticlesByCategorySlugAPIView,
+    CategoryDeleteAPIView,
     CategoryListAPIView,
     CategoryCreateAPIView,
+    CategoryUpdateAPIView,
 )
 
 urlpatterns = [
     path("list/", CategoryListAPIView.as_view(), name="category-list"),
     path("create/", CategoryCreateAPIView.as_view(), name="category-create"),
+    path("update/<int:pk>/", CategoryUpdateAPIView.as_view(), name="category-update"),
+    path("delete/<int:pk>/", CategoryDeleteAPIView.as_view(), name="category-delete"),
     # Get articles by category ID
     path(
         "<int:category_id>/",

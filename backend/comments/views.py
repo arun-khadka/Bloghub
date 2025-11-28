@@ -69,7 +69,7 @@ class CommentDetailView(APIView):
         comment = get_object_or_404(Comment, id=comment_id)
         user = request.user
 
-        if comment.user != user and not user.is_staff:
+        if comment.user != user and not user.is_admin:
             return Response({"detail": "You do not have permission to edit this comment."},
                             status=status.HTTP_403_FORBIDDEN)
 
@@ -84,7 +84,7 @@ class CommentDetailView(APIView):
         comment = get_object_or_404(Comment, id=comment_id)
         user = request.user
 
-        if comment.user != user and not user.is_staff:
+        if comment.user != user and not user.is_admin:
             return Response({"detail": "You do not have permission to delete this comment."},
                             status=status.HTTP_403_FORBIDDEN)
 

@@ -1,6 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
+from django.shortcuts import get_object_or_404
 from rest_framework.pagination import PageNumberPagination
 from .models import Category
 from .serializers import CategorySerializer
@@ -11,13 +12,26 @@ from blog.serializers import ArticleSerializer
 # Create Category (Admin Only)
 # ------------------------
 class CategoryCreateAPIView(APIView):
-    """
-    Create a new category (Admin only).
-    """
-    # permission_classes = [permissions.IsAdminUser]  # Only admin can access
+
+    # permission_classes = [permissions.IsAdminUser]
 
     def post(self, request):
         try:
+            name = request.data.get("name", "").strip()
+
+            # ---- Duplicate Category Validation ----
+            if Category.objects.filter(name__iexact=name).exists():
+                return Response(
+                    {
+                        "success": False,
+                        "message": "Category already exists.",
+                        "errors": {"name": ["A category with this name already exists."]},
+                        "data": None
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Serialize & Save
             serializer = CategorySerializer(data=request.data)
             if serializer.is_valid():
                 category = serializer.save()
@@ -30,7 +44,7 @@ class CategoryCreateAPIView(APIView):
                     },
                     status=status.HTTP_201_CREATED
                 )
-            
+
             return Response(
                 {
                     "success": False,
@@ -40,7 +54,53 @@ class CategoryCreateAPIView(APIView):
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
-            
+
+        except Exception as e:
+            return Response(
+                {
+                    "success": False,
+                    "message": "Internal server error",
+                    "errors": {"server": str(e)},
+                    "data": None
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+# ------------------------
+# Update Category (Admin Only)
+# ------------------------
+class CategoryUpdateAPIView(APIView):
+    
+    # permission_classes = [permissions.IsAdminUser]
+
+    def put(self, request, pk):
+        try:
+            category = get_object_or_404(Category, pk=pk)
+
+            serializer = CategorySerializer(category, data=request.data, partial=False)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(
+                    {
+                        "success": True,
+                        "message": "Category updated successfully",
+                        "data": serializer.data,
+                        "errors": None,
+                    },
+                    status=status.HTTP_200_OK
+                )
+
+            return Response(
+                {
+                    "success": False,
+                    "message": "Validation error",
+                    "errors": serializer.errors,
+                    "data": None
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         except Exception as e:
             return Response(
                 {
@@ -53,12 +113,44 @@ class CategoryCreateAPIView(APIView):
             )
 
 # ------------------------
-# Get Articles by Category ID
+# Delete Category (Admin Only)
+# ------------------------
+class CategoryDeleteAPIView(APIView):
+
+    # permission_classes = [permissions.IsAdminUser]
+
+    def delete(self, request, pk):
+        try:
+            category = get_object_or_404(Category, pk=pk)
+            category.delete()
+
+            return Response(
+                {
+                    "success": True,
+                    "message": "Category deleted successfully",
+                    "data": None,
+                    "errors": None
+                },
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return Response(
+                {
+                    "success": False,
+                    "message": "Internal server error",
+                    "errors": {"server": str(e)},
+                    "data": None
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+# ------------------------
+# Get All Articles by Category ID
 # ------------------------
 class ArticlesByCategoryAPIView(APIView):
-    """
-    Get all articles by category ID
-    """
+
     def get(self, request, category_id):
         try:
             # Check if category exists
@@ -121,12 +213,10 @@ class ArticlesByCategoryAPIView(APIView):
             )
 
 # ------------------------
-# Get Articles by Category Slug
+# Get Articles by Category Slug/Name
 # ------------------------
 class ArticlesByCategorySlugAPIView(APIView):
-    """
-    Get all articles by category slug/name
-    """
+
     def get(self, request, category_slug):
         try:
             # First get the category by slug/name
@@ -194,9 +284,7 @@ class ArticlesByCategorySlugAPIView(APIView):
 # List Categories (Public)
 # ------------------------
 class CategoryListAPIView(APIView):
-    """
-    List all active categories.
-    """
+
     permission_classes = [permissions.AllowAny]  # Public endpoint
 
     def get(self, request):
