@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import axios from "axios";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -34,6 +34,11 @@ import {
   X,
   Save,
   AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Search,
 } from "lucide-react";
 
 // Zod validation schema for category
@@ -134,6 +139,131 @@ function DeleteConfirmationModal({
   );
 }
 
+// Pagination Component
+function Pagination({ pagination, onPageChange, loading }) {
+  const { current_page, total_pages, has_previous, has_next, total_count } =
+    pagination;
+
+  // Don't show pagination if no pages or no data
+  if (total_pages <= 1 || total_count === 0) {
+    return null;
+  }
+
+  // Generate page numbers to display
+  const getPageNumbers = () => {
+    if (total_pages <= 5) {
+      // Show all pages if total pages is 5 or less
+      return Array.from({ length: total_pages }, (_, i) => i + 1);
+    }
+
+    const pages = [];
+    const showLeftDots = current_page > 3;
+    const showRightDots = current_page < total_pages - 2;
+
+    // Always show first page
+    pages.push(1);
+
+    if (showLeftDots) {
+      pages.push("...");
+    }
+
+    // Show pages around current page
+    const start = Math.max(2, current_page - 1);
+    const end = Math.min(total_pages - 1, current_page + 1);
+
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+
+    if (showRightDots) {
+      pages.push("...");
+    }
+
+    // Always show last page if there's more than 1 page
+    if (total_pages > 1) {
+      pages.push(total_pages);
+    }
+
+    return pages;
+  };
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-2 py-4">
+      <div className="text-sm text-muted-foreground">
+        Page {current_page} of {total_pages} • {total_count} total categories
+      </div>
+      <div className="flex items-center space-x-1">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange(1)}
+          disabled={!has_previous || loading}
+          className="hidden h-8 w-8 p-0 lg:flex"
+          title="First page"
+        >
+          <ChevronsLeft className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange(current_page - 1)}
+          disabled={!has_previous || loading}
+          className="h-8 w-8 p-0"
+          title="Previous page"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+
+        {/* Page numbers */}
+        <div className="flex items-center space-x-1">
+          {getPageNumbers().map((pageNum, index) =>
+            pageNum === "..." ? (
+              <span
+                key={`ellipsis-${index}`}
+                className="px-2 text-sm text-muted-foreground"
+              >
+                ...
+              </span>
+            ) : (
+              <Button
+                key={pageNum}
+                variant={current_page === pageNum ? "default" : "outline"}
+                size="sm"
+                onClick={() => onPageChange(pageNum)}
+                disabled={loading}
+                className="h-8 w-8 p-0 text-xs min-w-8"
+              >
+                {pageNum}
+              </Button>
+            )
+          )}
+        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange(current_page + 1)}
+          disabled={!has_next || loading}
+          className="h-8 w-8 p-0"
+          title="Next page"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange(total_pages)}
+          disabled={!has_next || loading}
+          className="hidden h-8 w-8 p-0 lg:flex"
+          title="Last page"
+        >
+          <ChevronsRight className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminCategoriesPage() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -146,6 +276,21 @@ export default function AdminCategoriesPage() {
     iconName: "",
   });
 
+  // Combined state for API calls
+  const [filters, setFilters] = useState({
+    page: 1,
+    search: "",
+  });
+
+  // Pagination state
+  const [pagination, setPagination] = useState({
+    current_page: 1,
+    total_pages: 0,
+    has_previous: false,
+    has_next: false,
+    total_count: 0,
+  });
+
   // Delete modal state
   const [deleteModal, setDeleteModal] = useState({
     isOpen: false,
@@ -156,6 +301,7 @@ export default function AdminCategoriesPage() {
 
   // Ref to track if initial load toast has been shown
   const initialLoadRef = useRef(false);
+  const searchTimeoutRef = useRef(null);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -172,20 +318,124 @@ export default function AdminCategoriesPage() {
     iconName: false,
   });
 
-  const [search, setSearch] = useState("");
+  // Fetch categories with current filters
+  const fetchCategories = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+      setSuccess("");
 
-  const filteredCategories = categories.filter((cat) => {
-    if (!search) return true;
-    const term = search.toLowerCase();
-    return (
-      cat.name.toLowerCase().includes(term) ||
-      (cat.icon_name || "").toLowerCase().includes(term)
-    );
-  });
+      const params = new URLSearchParams({
+        page: filters.page.toString(),
+      });
 
+      // Add search parameter if search term exists
+      if (filters.search.trim()) {
+        params.append("search", filters.search.trim());
+      }
+
+      const response = await axios.get(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/category/list/?${params}`
+      );
+
+      console.log("API Response:", response.data);
+
+      // Handle DRF pagination response structure
+      const responseData = response.data;
+
+      // Extract data based on DRF pagination structure
+      let categoriesData = [];
+      let totalCount = 0;
+      let hasNext = false;
+      let hasPrevious = false;
+
+      // Structure: DRF pagination with custom wrapper in results
+      if (
+        responseData.results &&
+        responseData.results.success &&
+        Array.isArray(responseData.results.data)
+      ) {
+        categoriesData = responseData.results.data;
+        totalCount = responseData.count || 0;
+        hasNext = responseData.next !== null;
+        hasPrevious = responseData.previous !== null;
+      }
+      // Alternative structure: Direct data array
+      else if (Array.isArray(responseData.data) && responseData.success) {
+        categoriesData = responseData.data;
+        totalCount = responseData.count || 0;
+        hasNext = responseData.next !== null;
+        hasPrevious = responseData.previous !== null;
+      }
+      // Standard DRF structure
+      else if (Array.isArray(responseData.results)) {
+        categoriesData = responseData.results;
+        totalCount = responseData.count || 0;
+        hasNext = responseData.next !== null;
+        hasPrevious = responseData.previous !== null;
+      }
+
+      setCategories(categoriesData);
+
+      // Calculate pagination (backend uses page_size = 6)
+      const pageSize = 6;
+      const totalPages = Math.ceil(totalCount / pageSize);
+
+      const paginationData = {
+        current_page: filters.page,
+        total_pages: totalPages || 1,
+        has_previous: hasPrevious,
+        has_next: hasNext,
+        total_count: totalCount,
+      };
+
+      setPagination(paginationData);
+
+      // Only show success toast on initial load
+      if (!initialLoadRef.current && categoriesData.length > 0) {
+        toast.success("Categories loaded successfully!");
+        initialLoadRef.current = true;
+      }
+
+      if (categoriesData.length === 0 && filters.search) {
+        toast.info("No categories found matching your search.");
+      }
+    } catch (err) {
+      console.error("Error fetching categories:", err);
+      const errorMessage =
+        err.response?.data?.message ||
+        "Failed to load categories. Please try again.";
+      setError(errorMessage);
+
+      if (!loading) {
+        toast.error(errorMessage);
+      }
+
+      // Reset pagination on error
+      setPagination({
+        current_page: 1,
+        total_pages: 1,
+        has_previous: false,
+        has_next: false,
+        total_count: 0,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [filters]);
+
+  // Initial load and when filters change
   useEffect(() => {
     fetchCategories();
-  }, []);
+  }, [fetchCategories]);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setFilters((prev) => ({
+      ...prev,
+      page: 1,
+    }));
+  }, [filters.search]);
 
   // Auto-clear messages after 5 seconds
   useEffect(() => {
@@ -198,6 +448,31 @@ export default function AdminCategoriesPage() {
       return () => clearTimeout(timer);
     }
   }, [error, success]);
+
+  // Handle search with debouncing
+  const handleSearchChange = (value) => {
+    // Clear existing timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // Set new timeout for debounced search
+    searchTimeoutRef.current = setTimeout(() => {
+      setFilters((prev) => ({
+        ...prev,
+        search: value,
+        page: 1, // Reset to first page when search changes
+      }));
+    }, 500);
+  };
+
+  // Handle page change
+  const handlePageChange = (newPage) => {
+    setFilters((prev) => ({
+      ...prev,
+      page: newPage,
+    }));
+  };
 
   // Validate individual field
   const validateField = (name, value) => {
@@ -250,39 +525,6 @@ export default function AdminCategoriesPage() {
     if (touched[name]) {
       const error = validateField(name, value);
       setFormErrors((prev) => ({ ...prev, [name]: error }));
-    }
-  };
-
-  const fetchCategories = async () => {
-    try {
-      setLoading(true);
-      setError("");
-      setSuccess("");
-
-      const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/category/list/`
-      );
-
-      if (response.data.success && Array.isArray(response.data.data)) {
-        setCategories(response.data.data);
-        // Only show success toast on initial load
-        if (!initialLoadRef.current) {
-          toast.success("Categories loaded successfully!", {
-            position: "top-center",
-          });
-          initialLoadRef.current = true;
-        }
-      } else {
-        setCategories([]);
-        toast.error("Invalid response format from server");
-      }
-    } catch (err) {
-      console.error("Error fetching categories:", err);
-      const errorMessage = "Failed to load categories. Please try again.";
-      setError(errorMessage);
-      toast.error(errorMessage);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -347,7 +589,8 @@ export default function AdminCategoriesPage() {
         setTouched({ name: false, iconName: false });
         setFormErrors({ name: "", iconName: "" });
 
-        // Refresh list to include new category
+        // Refresh list to include new category and reset to page 1
+        setFilters((prev) => ({ ...prev, page: 1 }));
         await fetchCategories();
       } else {
         const errorMessage =
@@ -479,7 +722,13 @@ export default function AdminCategoriesPage() {
       if (response.data.success) {
         toast.success("Category deleted successfully!");
         closeDeleteModal();
-        await fetchCategories(); // Refresh the list
+
+        // If we're on a page that might become empty after deletion, go back a page
+        if (categories.length === 1 && pagination.current_page > 1) {
+          setFilters((prev) => ({ ...prev, page: prev.page - 1 }));
+        } else {
+          await fetchCategories(); // Refresh the list
+        }
       } else {
         toast.error(response.data.message || "Failed to delete category.");
         closeDeleteModal();
@@ -516,6 +765,15 @@ export default function AdminCategoriesPage() {
   const clearError = () => setError("");
   const clearSuccess = () => setSuccess("");
 
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
+
   return (
     <div className="space-y-6">
       {/* Delete Confirmation Modal */}
@@ -538,7 +796,7 @@ export default function AdminCategoriesPage() {
         </div>
         <Badge variant="outline">
           <Tag className="mr-1 h-3 w-3" />
-          {categories.length} categories
+          {pagination.total_count} categories
         </Badge>
       </div>
 
@@ -695,12 +953,15 @@ export default function AdminCategoriesPage() {
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="relative w-full md:max-w-sm">
-              <Input
-                placeholder="Search by name or icon..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-9"
-              />
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+                <Input
+                  placeholder="Search by name or icon..."
+                  value={filters.search}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  className="h-9 pl-10"
+                />
+              </div>
             </div>
             <Button
               type="button"
@@ -727,116 +988,134 @@ export default function AdminCategoriesPage() {
               </TabsTrigger>
             </TabsList>
             <TabsContent value="all" className="mt-3">
-              {filteredCategories.length === 0 ? (
+              {loading && categories.length === 0 ? (
                 <div className="rounded-lg border border-dashed bg-muted/40 px-4 py-8 text-center text-sm text-muted-foreground">
-                  {loading
-                    ? "Loading categories..."
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                  Loading categories...
+                </div>
+              ) : categories.length === 0 ? (
+                <div className="rounded-lg border border-dashed bg-muted/40 px-4 py-8 text-center text-sm text-muted-foreground">
+                  {filters.search
+                    ? "No categories found matching your search."
                     : "No categories found. Create one using the form above."}
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Slug</TableHead>
-                      <TableHead>Icon name</TableHead>
-                      <TableHead className="w-[120px] text-center">
-                        Actions
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredCategories.map((category) => {
-                      const isEditing = editingId === category.id;
-                      const isDeleting =
-                        deleteModal.isLoading &&
-                        deleteModal.categoryId === category.id;
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Slug</TableHead>
+                        <TableHead>Icon name</TableHead>
+                        <TableHead className="w-[120px] text-center">
+                          Actions
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {categories.map((category) => {
+                        const isEditing = editingId === category.id;
+                        const isDeleting =
+                          deleteModal.isLoading &&
+                          deleteModal.categoryId === category.id;
 
-                      return (
-                        <TableRow key={category.id}>
-                          <TableCell className="font-medium">
-                            {isEditing ? (
-                              <Input
-                                value={editDraft.name}
-                                onChange={(e) =>
-                                  handleEditChange("name", e.target.value)
-                                }
-                                className="h-8 text-sm"
-                              />
-                            ) : (
-                              category.name
-                            )}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {category.slug}
-                          </TableCell>
-                          <TableCell>
-                            {isEditing ? (
-                              <Input
-                                value={editDraft.iconName}
-                                onChange={(e) =>
-                                  handleEditChange("iconName", e.target.value)
-                                }
-                                className="h-8 text-sm"
-                              />
-                            ) : (
-                              <Badge variant="outline">
-                                {category.icon_name || "—"}
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex justify-center gap-1">
+                        return (
+                          <TableRow key={category.id}>
+                            <TableCell className="font-medium">
                               {isEditing ? (
-                                <>
-                                  <Button
-                                    size="icon"
-                                    variant="outline"
-                                    className="h-8 w-8 hover:bg-green-50 hover:text-green-600 border-green-200"
-                                    onClick={() => saveEdit(category.id)}
-                                    disabled={isDeleting}
-                                  >
-                                    <Save className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button
-                                    size="icon"
-                                    variant="outline"
-                                    className="h-8 w-8 hover:bg-gray-50 border-gray-200"
-                                    onClick={cancelEdit}
-                                    disabled={isDeleting}
-                                  >
-                                    <X className="h-3.5 w-3.5" />
-                                  </Button>
-                                </>
+                                <Input
+                                  value={editDraft.name}
+                                  onChange={(e) =>
+                                    handleEditChange("name", e.target.value)
+                                  }
+                                  className="h-8 text-sm"
+                                />
                               ) : (
-                                <>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600"
-                                    onClick={() => startEdit(category)}
-                                    disabled={isDeleting || editingId !== null}
-                                  >
-                                    <Edit2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-8 w-8 hover:bg-red-50 hover:text-red-600"
-                                    onClick={() => openDeleteModal(category)}
-                                    disabled={isDeleting || editingId !== null}
-                                  >
-                                    <Trash2 className="h-3.5 text-red-600 w-3.5" />
-                                  </Button>
-                                </>
+                                category.name
                               )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {category.slug}
+                            </TableCell>
+                            <TableCell>
+                              {isEditing ? (
+                                <Input
+                                  value={editDraft.iconName}
+                                  onChange={(e) =>
+                                    handleEditChange("iconName", e.target.value)
+                                  }
+                                  className="h-8 text-sm"
+                                />
+                              ) : (
+                                <Badge variant="outline">
+                                  {category.icon_name || "—"}
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex justify-center gap-1">
+                                {isEditing ? (
+                                  <>
+                                    <Button
+                                      size="icon"
+                                      variant="outline"
+                                      className="h-8 w-8 hover:bg-green-50 hover:text-green-600 border-green-200"
+                                      onClick={() => saveEdit(category.id)}
+                                      disabled={isDeleting}
+                                    >
+                                      <Save className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      size="icon"
+                                      variant="outline"
+                                      className="h-8 w-8 hover:bg-gray-50 border-gray-200"
+                                      onClick={cancelEdit}
+                                      disabled={isDeleting}
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600"
+                                      onClick={() => startEdit(category)}
+                                      disabled={
+                                        isDeleting || editingId !== null
+                                      }
+                                    >
+                                      <Edit2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-8 w-8 hover:bg-red-50 hover:text-red-600"
+                                      onClick={() => openDeleteModal(category)}
+                                      disabled={
+                                        isDeleting || editingId !== null
+                                      }
+                                    >
+                                      <Trash2 className="h-3.5 text-red-600 w-3.5" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+
+                  {/* Pagination */}
+                  <Pagination
+                    pagination={pagination}
+                    onPageChange={handlePageChange}
+                    loading={loading}
+                  />
+                </>
               )}
             </TabsContent>
           </Tabs>

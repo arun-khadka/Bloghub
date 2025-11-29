@@ -297,14 +297,6 @@ export default function AdminDashboardPage() {
         comments: "98",
         badge: "Rising Star",
       },
-      {
-        id: 3,
-        name: "Other Authors",
-        articles: 0,
-        views: "4,428",
-        comments: "76",
-        badge: "Contributors",
-      },
     ];
   };
 
@@ -327,13 +319,13 @@ export default function AdminDashboardPage() {
       label: "Total Comments",
       value: kpis.totalComments.toLocaleString(),
       icon: MessageCircle,
-      description: "Engagement metrics",
+      description: "All comments",
     },
     {
       label: "Total Views",
       value: kpis.totalViews.toLocaleString(),
       icon: Eye,
-      description: "All-time platform views",
+      description: "All-time views",
     },
   ];
 

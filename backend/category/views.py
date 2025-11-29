@@ -1,3 +1,4 @@
+from django.db.models import Q
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
@@ -284,24 +285,35 @@ class ArticlesByCategorySlugAPIView(APIView):
 # List Categories (Public)
 # ------------------------
 class CategoryListAPIView(APIView):
-
-    permission_classes = [permissions.AllowAny]  # Public endpoint
+    permission_classes = [permissions.AllowAny]
 
     def get(self, request):
         try:
+            # Fetch active categories
             categories = Category.objects.filter(is_active=True).order_by("name")
-            serializer = CategorySerializer(categories, many=True)
-            
-            return Response(
-                {
-                    "success": True,
-                    "message": "Categories retrieved successfully",
-                    "data": serializer.data,
-                    "errors": None
-                },
-                status=status.HTTP_200_OK
-            )
-            
+
+            # Add search functionality
+            search_query = request.GET.get('search', '')
+            if search_query:
+                categories = categories.filter(
+                    Q(name__icontains=search_query) | 
+                    Q(icon_name__icontains=search_query)
+                )
+
+            # Pagination Logic
+            paginator = PageNumberPagination()
+            paginator.page_size = 6
+            paginated_categories = paginator.paginate_queryset(categories, request)
+
+            serializer = CategorySerializer(paginated_categories, many=True)
+
+            return paginator.get_paginated_response({
+                "success": True,
+                "message": "Categories retrieved successfully",
+                "data": serializer.data,
+                "errors": None
+            })
+
         except Exception as e:
             return Response(
                 {
