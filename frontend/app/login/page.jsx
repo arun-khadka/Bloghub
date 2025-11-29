@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+
 import {
   Eye,
   EyeOff,
@@ -188,7 +189,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-background via-background to-accent/20 px-4 py-12">
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-sm">
         {/* -------- Header -------- */}
         <div className="text-center mb-8">
           <a href="/" className="inline-flex items-center gap-2 mb-6 group">
@@ -225,7 +226,7 @@ export default function LoginPage() {
                 Email Address
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
                   id="email"
                   name="email"
@@ -234,7 +235,7 @@ export default function LoginPage() {
                   value={formData.email}
                   onChange={handleChange}
                   onBlur={handleBlur}
-                  className={`w-full pl-10 pr-10 py-3 bg-background border rounded-lg focus:outline-none focus:ring-2 transition-all ${
+                  className={`w-full text-sm pl-10 pr-10 py-2 bg-background border rounded-lg focus:outline-none focus:ring-2 transition-all ${
                     getFieldState("email") === "error"
                       ? "border-destructive focus:ring-destructive/50"
                       : getFieldState("email") === "success"
@@ -274,7 +275,7 @@ export default function LoginPage() {
                 Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
                   id="password"
                   name="password"
@@ -283,7 +284,7 @@ export default function LoginPage() {
                   value={formData.password}
                   onChange={handleChange}
                   onBlur={handleBlur}
-                  className={`w-full pl-10 pr-12 py-3 bg-background border rounded-lg focus:outline-none focus:ring-2 transition-all ${
+                  className={`w-full text-sm pl-10 pr-12 py-2 bg-background border rounded-lg focus:outline-none focus:ring-2 transition-all ${
                     getFieldState("password") === "error"
                       ? "border-destructive focus:ring-destructive/50"
                       : getFieldState("password") === "success"
@@ -303,9 +304,9 @@ export default function LoginPage() {
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? (
-                    <EyeOff className="w-5 h-5" />
+                    <EyeOff className="w-4 h-4" />
                   ) : (
-                    <Eye className="w-5 h-5" />
+                    <Eye className="w-4 h-4" />
                   )}
                 </button>
               </div>

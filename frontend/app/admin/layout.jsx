@@ -3,7 +3,14 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Users, FileText, BarChart3, Tag, LogOut } from "lucide-react";
+import {
+  LayoutDashboard,
+  Users,
+  FileText,
+  BarChart3,
+  Tag,
+  LogOut,
+} from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 import {
@@ -21,6 +28,7 @@ import {
   SidebarInset,
   SidebarSeparator,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +55,31 @@ const adminNavItems = [
     icon: Tag,
   },
 ];
+
+function LogoutButton() {
+  const { state } = useSidebar();
+  const { logout } = useAuth();
+  const router = useRouter();
+
+  const handleLogout = () => {
+    logout();
+    router.replace("/admin/login");
+  };
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        onClick={handleLogout}
+        className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full justify-start gap-2"
+      >
+        <LogOut className="h-4 w-4 shrink-0" />
+        {state === "expanded" && (
+          <span className="transition-all duration-200">Logout</span>
+        )}
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
 
 export default function AdminLayout({ children }) {
   const pathname = usePathname();
@@ -75,11 +108,6 @@ export default function AdminLayout({ children }) {
     }
   }, [user, loading, isAuthRoute, router]);
 
-  const handleLogout = () => {
-    logout();
-    router.replace("/admin/login");
-  };
-
   if (isAuthRoute) {
     return <>{children}</>;
   }
@@ -99,17 +127,19 @@ export default function AdminLayout({ children }) {
     <SidebarProvider className="bg-muted/30">
       <Sidebar variant="inset" collapsible="icon">
         <SidebarHeader>
-          <div className="flex items-center gap-2 px-2 py-1.5">
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold text-lg shrink-0">
-              B
+          <Link href="/admin/" className="block no-underline">
+            <div className="flex items-center gap-2 px-2 py-1.5">
+              <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold text-lg shrink-0">
+                B
+              </div>
+              <div className="flex flex-col min-w-0 flex-1 transition-all duration-200 group-data-[collapsed=true]:opacity-0 group-data-[collapsed=true]:w-0 group-data-[collapsed=true]:overflow-hidden">
+                <span className="text-sm font-semibold truncate">BlogHub</span>
+                <span className="text-xs text-muted-foreground truncate">
+                  Admin Console
+                </span>
+              </div>
             </div>
-            <div className="flex flex-col min-w-0 flex-1 transition-all duration-200 group-data-[collapsed=true]:opacity-0 group-data-[collapsed=true]:w-0 group-data-[collapsed=true]:overflow-hidden">
-              <span className="text-sm font-semibold truncate">BlogHub</span>
-              <span className="text-xs text-muted-foreground truncate">
-                Admin Console
-              </span>
-            </div>
-          </div>
+          </Link>
         </SidebarHeader>
         <SidebarSeparator />
         <SidebarContent>
@@ -126,7 +156,11 @@ export default function AdminLayout({ children }) {
 
                   return (
                     <SidebarMenuItem key={item.href}>
-                      <SidebarMenuButton asChild isActive={isActive}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={isActive}
+                        className="hover:bg-gray-200"
+                      >
                         <Link href={item.href}>
                           <item.icon className="h-4 w-4 shrink-0" />
                           <span className="transition-all duration-200 group-data-[collapsed=true]:opacity-0 group-data-[collapsed=true]:w-0 group-data-[collapsed=true]:overflow-hidden">
@@ -142,19 +176,11 @@ export default function AdminLayout({ children }) {
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter>
-          <div className="px-2 py-1.5">
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full justify-start gap-2 h-9 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
-              onClick={handleLogout}
-            >
-              <LogOut className="h-4 w-4 shrink-0" />
-              <span className="transition-all duration-200 group-data-[collapsed=true]:opacity-0 group-data-[collapsed=true]:w-0 group-data-[collapsed=true]:overflow-hidden">
-                Logout
-              </span>
-            </Button>
-          </div>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <LogoutButton />
+            </SidebarMenu>
+          </SidebarGroupContent>
         </SidebarFooter>
       </Sidebar>
 
@@ -171,18 +197,17 @@ export default function AdminLayout({ children }) {
             <div className="hidden md:flex items-center gap-2">
               <Input
                 placeholder="Search users, articles..."
-                className="h-9 w-52"
+                className="h-9 w-59"
               />
             </div>
-            <Button
+            {/* <Button
               size="sm"
               variant="outline"
               className="hidden sm:inline-flex"
             >
               <BarChart3 className="h-4 w-4 mr-1" />
               View Reports
-            </Button>
-          
+            </Button> */}
           </div>
         </div>
 

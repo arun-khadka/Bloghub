@@ -1,6 +1,7 @@
 from django.contrib.auth import authenticate
 from rest_framework import serializers
 from .models import User
+from blog.models import Article 
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -104,8 +105,8 @@ class UserListSerializer(serializers.ModelSerializer):
     
     def get_articles_count(self, obj):
         # Assuming you have an Article model with author field
-        if hasattr(obj, 'articles'):
-            return obj.articles.count()
+        if hasattr(obj, 'author_profile'):
+            return Article.objects.filter(author=obj.author_profile).count()
         return 0
     
     def get_joined(self, obj):

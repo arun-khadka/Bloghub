@@ -99,14 +99,18 @@ export default function AdminLoginPage() {
     setSubmitting(true);
     try {
       await adminLogin(formData.email, formData.password);
-      toast.success("Welcome back, admin!");
+      toast.success("Welcome back, admin!", {
+        position:"top-center",
+      });
       router.replace("/admin");
     } catch (error) {
       const message =
         error?.message ||
         "Unable to sign in. Please verify your admin credentials.";
       setAuthError(message);
-      toast.error(message);
+      toast.error(message, {
+        position: "top-right"
+      });
     } finally {
       setSubmitting(false);
     }
@@ -136,7 +140,7 @@ export default function AdminLoginPage() {
         <div className="bg-card border border-border rounded-2xl shadow-xl p-8">
           <form onSubmit={handleSubmit} className="space-y-6" noValidate>
             {authError && (
-              <Alert variant="destructive" className="flex items-center gap-2">
+              <Alert variant="destructive" className="flex items-center bg-red-100 gap-2">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>{authError}</AlertDescription>
               </Alert>
@@ -144,7 +148,7 @@ export default function AdminLoginPage() {
 
             <div className="space-y-2">
               <label htmlFor="email" className="text-sm font-medium text-foreground">
-                Email
+                Email Address
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -235,7 +239,7 @@ export default function AdminLoginPage() {
             <Button
               type="submit"
               disabled={submitting}
-              className="w-full h-12 text-base font-semibold"
+              className="w-full h-12 text-base font-medium"
             >
               {submitting ? (
                 <span className="flex items-center gap-2">
@@ -243,7 +247,7 @@ export default function AdminLoginPage() {
                   Verifying admin access...
                 </span>
               ) : (
-                "Sign in"
+                "Sign In"
               )}
             </Button>
           </form>

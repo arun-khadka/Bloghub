@@ -12,6 +12,8 @@ class ArticleSerializer(serializers.ModelSerializer):
     # Add category_name field to get the category name
     category_name = serializers.CharField(source="category.name", read_only=True)
     author_name = serializers.CharField(source="author.user.fullname", read_only=True)
+    status = serializers.SerializerMethodField()
+
 
     class Meta:
         model = Article
@@ -31,6 +33,7 @@ class ArticleSerializer(serializers.ModelSerializer):
             "updated_at",
             "is_published",
             "is_deleted",
+            "status",
         ]
         read_only_fields = ["slug", "created_at", "updated_at", "view_count", "author"]
 
@@ -40,3 +43,10 @@ class ArticleSerializer(serializers.ModelSerializer):
         if category and not Category.objects.filter(id=category.id).exists():
             raise serializers.ValidationError({"category": "Invalid category ID"})
         return super().create(validated_data)
+    
+    def get_status(self, obj):
+        if obj.is_deleted:
+            return "deleted"
+        if obj.is_published:
+            return "published"
+        return "draft"

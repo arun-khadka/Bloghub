@@ -2,11 +2,14 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
 from django.db.models import F, Q
+from django.db.models import Sum
 from django.shortcuts import get_object_or_404
 from .models import Article
 from authors.models import Author
 from .serializers import ArticleSerializer
+
 
 def success_response(data, message="Success", code=status.HTTP_200_OK):
     return Response(
@@ -157,19 +160,62 @@ class ArticlesByAuthorView(APIView):
 # -------------------------
 # LIST ALL PUBLISHED ARTICLES
 # -------------------------
+class ArticlePagination(PageNumberPagination):
+    page_size = 10  # Default items per page
+    page_size_query_param = "limit"  # Allow frontend to change limit
+    max_page_size = 100
+
+
 class ArticleListView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
-        articles = Article.objects.filter(is_published=True).order_by("-created_at")
-        serializer = ArticleSerializer(articles, many=True)
+        sort = request.GET.get("sort", "date_desc")
+        # sort options: views_asc, views_desc, date_asc, date_desc
 
-        return Response(
+        # Base query
+        articles = Article.objects.filter(is_deleted=False)
+
+        # Apply sorting
+        if sort == "views_asc":
+            articles = articles.order_by("view_count")
+        elif sort == "views_desc":
+            articles = articles.order_by("-view_count")
+        elif sort == "date_asc":
+            articles = articles.order_by("created_at")
+        else:  # date_desc (default)
+            articles = articles.order_by("-created_at")
+
+        # Pagination
+        paginator = ArticlePagination()
+        paginated_articles = paginator.paginate_queryset(articles, request)
+        serializer = ArticleSerializer(paginated_articles, many=True)
+
+        # ---> Compute total views
+        total_views_agg = Article.objects.filter(is_deleted=False).aggregate(
+            total_views=Sum("view_count")
+        )
+        total_views = total_views_agg.get("total_views") or 0
+
+        # Stats
+        stats = {
+            "total": Article.objects.filter(is_deleted=False).count(),
+            "published": Article.objects.filter(
+                is_published=True, is_deleted=False
+            ).count(),
+            "draft": Article.objects.filter(
+                is_published=False, is_deleted=False
+            ).count(),
+            "deleted": Article.objects.filter(is_deleted=True).count(),
+            "total_views": total_views,
+        }
+
+        return paginator.get_paginated_response(
             {
                 "success": True,
-                "data": serializer.data,
                 "message": "Articles retrieved successfully",
-                "count": articles.count(),
+                "data": serializer.data,
+                "stats": stats,
             }
         )
 
@@ -326,7 +372,7 @@ class ArticleDeleteByIdView(APIView):
 
         # HARD DELETE - completely remove from database
         article_id = article.id
-        article.delete()  
+        article.delete()
 
         return Response(
             {

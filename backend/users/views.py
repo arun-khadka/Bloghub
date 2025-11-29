@@ -3,7 +3,11 @@ from rest_framework import permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from django.utils import timezone
+from datetime import timedelta
+from django.db.models import Sum
 from .models import User
+from blog.models import Article
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -253,30 +257,65 @@ class AdminUserDeleteView(APIView):
 
 # Admin Dashboard Stats View
 class AdminDashboardView(APIView):
-    permission_classes = [permissions.IsAdminUser]
+    # permission_classes = [permissions.IsAdminUser]
 
     def get(self, request):
         try:
+            # ======================
+            # USER STATISTICS
+            # ======================
             total_users = User.objects.count()
             active_users = User.objects.filter(is_active=True).count()
             admin_users = User.objects.filter(is_admin=True).count()
             author_users = User.objects.filter(is_author=True).count()
             reader_users = User.objects.filter(is_admin=False, is_author=False).count()
 
-            # Recent users (last 7 days)
-            from django.utils import timezone
-            from datetime import timedelta
-
             week_ago = timezone.now() - timedelta(days=7)
             recent_users = User.objects.filter(date_joined__gte=week_ago).count()
 
+            # ======================
+            # ARTICLE STATISTICS
+            # ======================
+            total_articles = Article.objects.filter(is_deleted=False).count()
+            published_articles = Article.objects.filter(is_published=True, is_deleted=False).count()
+            draft_articles = Article.objects.filter(is_published=False, is_deleted=False).count()
+            deleted_articles = Article.objects.filter(is_deleted=True).count()
+
+            # Sum of all article views
+            views_agg = Article.objects.filter(is_deleted=False).aggregate(total_views=Sum("view_count"))
+            total_views = views_agg.get("total_views") or 0
+
+            # New articles: today & last 7 days
+            today = timezone.now().date()
+            today_articles = Article.objects.filter(
+                created_at__date=today, is_deleted=False
+            ).count()
+
+            recent_articles = Article.objects.filter(
+                created_at__gte=week_ago, is_deleted=False
+            ).count()
+
+            # ======================
+            # FINAL STATS RESPONSE
+            # ======================
             stats = {
-                "total_users": total_users,
-                "active_users": active_users,
-                "admin_users": admin_users,
-                "author_users": author_users,
-                "reader_users": reader_users,
-                "recent_users": recent_users,
+                "users": {
+                    "total": total_users,
+                    "active": active_users,
+                    "admins": admin_users,
+                    "authors": author_users,
+                    "readers": reader_users,
+                    "new_last_7_days": recent_users,
+                },
+                "articles": {
+                    "total": total_articles,
+                    "published": published_articles,
+                    "draft": draft_articles,
+                    "deleted": deleted_articles,
+                    "total_views": total_views,
+                    "today_created": today_articles,
+                    "last_7_days": recent_articles,
+                },
             }
 
             return success_response(stats, "Dashboard stats retrieved successfully")

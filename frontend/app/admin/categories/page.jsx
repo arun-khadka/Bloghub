@@ -267,7 +267,9 @@ export default function AdminCategoriesPage() {
         setCategories(response.data.data);
         // Only show success toast on initial load
         if (!initialLoadRef.current) {
-          toast.success("Categories loaded successfully!");
+          toast.success("Categories loaded successfully!", {
+            position: "top-center",
+          });
           initialLoadRef.current = true;
         }
       } else {
@@ -765,7 +767,7 @@ export default function AdminCategoriesPage() {
                               category.name
                             )}
                           </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
+                          <TableCell className="text-sm text-muted-foreground">
                             {category.slug}
                           </TableCell>
                           <TableCell>

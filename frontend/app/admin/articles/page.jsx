@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import axios from "axios";
 import { toast } from "sonner";
 import {
@@ -52,6 +52,10 @@ import {
   Eye,
   Calendar,
   User,
+  RefreshCw,
+  Filter,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 // Delete Confirmation Modal Component
@@ -66,21 +70,15 @@ function DeleteConfirmationModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
         onClick={onClose}
       />
-
-      {/* Modal */}
-      <div className="relative bg-white rounded-lg shadow-lg w-full max-w-md mx-4 border border-red-200 animate-in zoom-in-95">
+      <div className="relative bg-white rounded-lg shadow-lg w-full max-w-md mx-4 border border-gray-200 animate-in zoom-in-95">
         <div className="flex flex-col p-6">
-          {/* Icon */}
           <div className="flex items-center justify-center w-12 h-12 bg-red-100 rounded-full mx-auto mb-4">
             <AlertTriangle className="h-6 w-6 text-red-600" />
           </div>
-
-          {/* Content */}
           <div className="text-center mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
               Delete Article
@@ -90,12 +88,9 @@ function DeleteConfirmationModal({
               <span className="font-semibold text-gray-900">
                 "{articleTitle}"
               </span>
-              ? This action cannot be undone and will permanently remove the
-              article.
+              ? This action cannot be undone.
             </p>
           </div>
-
-          {/* Actions */}
           <div className="flex gap-3">
             <Button
               type="button"
@@ -132,17 +127,161 @@ function DeleteConfirmationModal({
   );
 }
 
+// Stats Cards Component
+function StatsCards({ stats, loading }) {
+  if (loading) {
+    return (
+      <div className="grid gap-4 md:grid-cols-4">
+        {[1, 2, 3, 4].map((i) => (
+          <Card key={i} className="border">
+            <CardHeader className="pb-2">
+              <CardDescription>
+                <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
+              </CardDescription>
+              <CardTitle className="text-2xl">
+                <div className="h-8 bg-gray-200 rounded w-12 animate-pulse"></div>
+              </CardTitle>
+            </CardHeader>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 md:grid-cols-4">
+      <Card className="border">
+        <CardHeader className="pb-2">
+          <CardDescription className="font-medium">
+            Total Articles
+          </CardDescription>
+          <CardTitle className="text-2xl text-gray-900">
+            {stats?.total?.toLocaleString() || 0}
+          </CardTitle>
+        </CardHeader>
+      </Card>
+      <Card className="border">
+        <CardHeader className="pb-2">
+          <CardDescription className="font-medium">Published</CardDescription>
+          <CardTitle className="text-2xl text-green-600">
+            {stats?.published?.toLocaleString() || 0}
+          </CardTitle>
+        </CardHeader>
+      </Card>
+      <Card className="border">
+        <CardHeader className="pb-2">
+          <CardDescription className="font-medium">Drafts</CardDescription>
+          <CardTitle className="text-2xl text-amber-600">
+            {stats?.draft?.toLocaleString() || 0}
+          </CardTitle>
+        </CardHeader>
+      </Card>
+      <Card className="border">
+        <CardHeader className="pb-2">
+          <CardDescription className="font-medium">Total Views</CardDescription>
+          <CardTitle className="text-2xl text-blue-600">
+            {stats?.total_views?.toLocaleString() || 0}
+          </CardTitle>
+        </CardHeader>
+      </Card>
+    </div>
+  );
+}
+
+// Enhanced Pagination Component
+function Pagination({ pagination, onPageChange, loading }) {
+  const totalPages = Math.ceil(pagination.count / pagination.pageSize);
+
+  if (totalPages <= 1) return null;
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
+      <div className="text-sm text-gray-600">
+        Showing{" "}
+        <span className="font-semibold text-gray-900">
+          {(pagination.current - 1) * pagination.pageSize + 1}-
+          {Math.min(pagination.current * pagination.pageSize, pagination.count)}
+        </span>{" "}
+        of{" "}
+        <span className="font-semibold text-gray-900">{pagination.count}</span>{" "}
+        articles
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange(pagination.current - 1)}
+          disabled={!pagination.previous || loading}
+          className="gap-2 h-9 w-9 p-0 sm:w-auto sm:px-3"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          <span className="hidden sm:inline">Previous</span>
+        </Button>
+
+        <div className="flex items-center gap-1">
+          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+            let pageNum;
+            if (totalPages <= 5) {
+              pageNum = i + 1;
+            } else if (pagination.current <= 3) {
+              pageNum = i + 1;
+            } else if (pagination.current >= totalPages - 2) {
+              pageNum = totalPages - 4 + i;
+            } else {
+              pageNum = pagination.current - 2 + i;
+            }
+
+            return (
+              <Button
+                key={pageNum}
+                variant={pagination.current === pageNum ? "default" : "outline"}
+                size="sm"
+                onClick={() => onPageChange(pageNum)}
+                disabled={loading}
+                className="h-9 w-9 p-0 font-medium"
+              >
+                {pageNum}
+              </Button>
+            );
+          })}
+        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange(pagination.current + 1)}
+          disabled={!pagination.next || loading}
+          className="gap-2 h-9 w-9 p-0 sm:w-auto sm:px-3"
+        >
+          <span className="hidden sm:inline">Next</span>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminArticlesPage() {
   const [articles, setArticles] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("date_desc");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingArticle, setEditingArticle] = useState(null);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [stats, setStats] = useState(null);
+  const [pagination, setPagination] = useState({
+    current: 1,
+    total: 0,
+    pageSize: 10,
+    next: null,
+    previous: null,
+    count: 0,
+  });
 
   // Delete modal state
   const [deleteModal, setDeleteModal] = useState({
@@ -152,85 +291,114 @@ export default function AdminArticlesPage() {
     isLoading: false,
   });
 
-  // Ref to track if initial load toast has been shown
   const initialLoadRef = useRef(false);
 
   const [formData, setFormData] = useState({
     title: "",
-    author: "",
+    author_name: "",
     status: "draft",
     content: "",
     category: "",
+    is_published: false,
   });
 
+  // Fetch articles with parameters
+  const fetchArticles = useCallback(
+    async (page = 1, sort = sortBy) => {
+      try {
+        setLoading(true);
+        setError("");
+
+        const params = new URLSearchParams({
+          page: page.toString(),
+          sort: sort,
+          limit: "10",
+        });
+
+        const response = await axios.get(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/blog/list/?${params}`
+        );
+
+        console.log("API Response:", response.data);
+
+        if (response.data && response.data.results) {
+          const results = response.data.results;
+
+          let articlesData = [];
+          if (results.data && Array.isArray(results.data)) {
+            articlesData = results.data;
+          } else if (Array.isArray(results)) {
+            articlesData = results;
+          }
+
+          let statsData = {};
+          if (results.stats) {
+            statsData = results.stats;
+          }
+
+          const paginationData = {
+            current: page,
+            total: response.data.count || 0,
+            pageSize: 10,
+            next: response.data.next,
+            previous: response.data.previous,
+            count: response.data.count || 0,
+          };
+
+          setArticles(articlesData);
+          setStats(statsData);
+          setPagination(paginationData);
+
+          if (!initialLoadRef.current) {
+            toast.success("Articles loaded successfully!", {
+              position: "top-center",
+            });
+            initialLoadRef.current = true;
+          }
+        } else {
+          throw new Error("Invalid response format from server");
+        }
+      } catch (err) {
+        console.error("Error fetching articles:", err);
+        const errorMessage =
+          err.response?.data?.message ||
+          err.message ||
+          "Failed to load articles. Please try again.";
+        setError(errorMessage);
+        toast.error(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [sortBy]
+  );
+
+  // Initial load
   useEffect(() => {
     fetchArticles();
-  }, []);
+  }, [fetchArticles]);
 
-  // Auto-clear messages after 5 seconds
+  // Auto-clear messages
   useEffect(() => {
-    if (error || success) {
+    if (error) {
       const timer = setTimeout(() => {
         setError("");
-        setSuccess("");
       }, 5000);
-
       return () => clearTimeout(timer);
     }
-  }, [error, success]);
-
-  const fetchArticles = async () => {
-    try {
-      setLoading(true);
-      setError("");
-      setSuccess("");
-
-      const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/blog/list/`
-      );
-
-      // Handle different response formats
-      if (Array.isArray(response.data)) {
-        // If response is directly an array
-        setArticles(response.data);
-      } else if (response.data.data && Array.isArray(response.data.data)) {
-        // If response has data property with array
-        setArticles(response.data.data);
-      } else if (response.data.success && Array.isArray(response.data.data)) {
-        // If response has success flag and data array
-        setArticles(response.data.data);
-      } else {
-        setArticles([]);
-        toast.error("Invalid response format from server");
-        return;
-      }
-
-      // Only show success toast on initial load
-      if (!initialLoadRef.current) {
-        toast.success("Articles loaded successfully!");
-        initialLoadRef.current = true;
-      }
-    } catch (err) {
-      console.error("Error fetching articles:", err);
-      const errorMessage = "Failed to load articles. Please try again.";
-      setError(errorMessage);
-      toast.error(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [error]);
 
   const resetForm = () => {
     setFormData({
       title: "",
-      author: "",
+      author_name: "",
       status: "draft",
       content: "",
       category: "",
+      is_published: false,
     });
     setEditingArticle(null);
     setError("");
-    setSuccess("");
   };
 
   const openCreateDialog = () => {
@@ -241,11 +409,12 @@ export default function AdminArticlesPage() {
   const openEditDialog = (article) => {
     setEditingArticle(article);
     setFormData({
-      title: article.title,
-      author: article.author_name || "",
-      status: article.status,
+      title: article.title || "",
+      author_name: article.author_name || "",
+      status: article.is_published ? "published" : "draft",
       content: article.content || "",
-      category: article.category || "",
+      category: article.category_name || "",
+      is_published: article.is_published || false,
     });
     setDialogOpen(true);
   };
@@ -256,17 +425,30 @@ export default function AdminArticlesPage() {
       return;
     }
 
+    if (!formData.content.trim()) {
+      setError("Article content is required");
+      return;
+    }
+
     try {
+      const payload = {
+        title: formData.title,
+        author_name: formData.author_name,
+        content: formData.content,
+        category: formData.category,
+        is_published: formData.status === "published",
+      };
+
+      const token =
+        typeof window !== "undefined"
+          ? localStorage.getItem("accessToken")
+          : null;
+
       if (editingArticle) {
         setUpdating(true);
-        const token =
-          typeof window !== "undefined"
-            ? localStorage.getItem("accessToken")
-            : null;
-
         const response = await axios.put(
           `${process.env.NEXT_PUBLIC_API_URL}/api/blog/update/${editingArticle.id}/`,
-          formData,
+          payload,
           {
             headers: {
               "Content-Type": "application/json",
@@ -279,20 +461,15 @@ export default function AdminArticlesPage() {
           toast.success("Article updated successfully!");
           setDialogOpen(false);
           resetForm();
-          await fetchArticles();
+          await fetchArticles(pagination.current);
         } else {
           setError(response.data.message || "Failed to update article.");
         }
       } else {
         setCreating(true);
-        const token =
-          typeof window !== "undefined"
-            ? localStorage.getItem("accessToken")
-            : null;
-
         const response = await axios.post(
           `${process.env.NEXT_PUBLIC_API_URL}/api/blog/create/`,
-          formData,
+          payload,
           {
             headers: {
               "Content-Type": "application/json",
@@ -305,7 +482,7 @@ export default function AdminArticlesPage() {
           toast.success("Article created successfully!");
           setDialogOpen(false);
           resetForm();
-          await fetchArticles();
+          await fetchArticles(1);
         } else {
           setError(response.data.message || "Failed to create article.");
         }
@@ -323,7 +500,7 @@ export default function AdminArticlesPage() {
     }
   };
 
-  // Delete functions with modal
+  // Delete functions
   const openDeleteModal = (article) => {
     setDeleteModal({
       isOpen: true,
@@ -364,73 +541,76 @@ export default function AdminArticlesPage() {
       if (response.data.success) {
         toast.success("Article deleted successfully!");
         closeDeleteModal();
-        await fetchArticles();
+        await fetchArticles(pagination.current);
       } else {
-        toast.error(response.data.message || "Failed to delete article.");
-        closeDeleteModal();
+        throw new Error(response.data.message || "Failed to delete article.");
       }
     } catch (err) {
       console.error("Error deleting article:", err);
       const errorMessage =
         err.response?.data?.message || "Failed to delete article.";
       toast.error(errorMessage);
+    } finally {
       closeDeleteModal();
     }
   };
 
+  // Filter articles based on search and status
   const filteredArticles = articles.filter((article) => {
     const searchTerm = search.toLowerCase();
-
     const matchesSearch =
       !search ||
-      String(article.title || "")
-        .toLowerCase()
-        .includes(searchTerm) ||
-      String(article.author || "")
-        .toLowerCase()
-        .includes(searchTerm) ||
-      String(article.author_name || "")
-        .toLowerCase()
-        .includes(searchTerm);
+      (article.title || "").toLowerCase().includes(searchTerm) ||
+      (article.author_name || "").toLowerCase().includes(searchTerm);
 
     const matchesStatus =
-      statusFilter === "all" || article.status === statusFilter;
+      statusFilter === "all" ||
+      (statusFilter === "published"
+        ? article.is_published
+        : !article.is_published);
 
     return matchesSearch && matchesStatus;
   });
 
-  const totalArticles = articles.length;
-  const publishedArticles = articles.filter(
-    (a) => a.status === "published"
-  ).length;
-  const draftArticles = articles.filter((a) => a.status === "draft").length;
+  // Sort options
+  const sortOptions = [
+    { value: "date_desc", label: "Newest First" },
+    { value: "date_asc", label: "Oldest First" },
+    { value: "views_desc", label: "Most Views" },
+    { value: "views_asc", label: "Least Views" },
+  ];
 
-  // Helper function to get author name from article
+  // Helper functions
   const getAuthorName = (article) => {
     return article?.author_name || "Unknown Author";
   };
 
-  // Helper function to get created date from article
   const getCreatedDate = (article) => {
-    return (
-      article.createdAt ||
-      article.created_at ||
-      article.created_date ||
-      article.created
-    );
+    return article.created_at || article.createdAt;
   };
 
-  // Helper function to get views count from article
   const getViewsCount = (article) => {
-    return article.views || article.view_count || 0;
+    return article.view_count || 0;
   };
 
-  // Manual clear functions
+  const getStatus = (article) => {
+    return article.is_published ? "published" : "draft";
+  };
+
   const clearError = () => setError("");
-  const clearSuccess = () => setSuccess("");
+
+  // Pagination handlers
+  const handlePageChange = (newPage) => {
+    fetchArticles(newPage);
+  };
+
+  const handleSortChange = (newSort) => {
+    setSortBy(newSort);
+    fetchArticles(1, newSort);
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 sm:p-6">
       {/* Delete Confirmation Modal */}
       <DeleteConfirmationModal
         isOpen={deleteModal.isOpen}
@@ -440,45 +620,46 @@ export default function AdminArticlesPage() {
         isLoading={deleteModal.isLoading}
       />
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold text-gray-900">
             Content Management
           </h1>
-          <p className="text-sm text-muted-foreground">
-            Manage articles with full create, read, update, and delete controls.
+          <p className="text-gray-600 text-sm">
+            Manage and organize your articles
           </p>
         </div>
+
+        {/* Create Article Dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button size="sm" onClick={openCreateDialog}>
-              <Plus className="mr-1 h-4 w-4" />
-              New article
+            <Button onClick={openCreateDialog} className="gap-2 h-10">
+              <Plus className="h-4 w-4" />
+              New Article
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>
-                {editingArticle ? "Edit article" : "Create article"}
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader className="pb-4">
+              <DialogTitle className="text-xl font-semibold">
+                {editingArticle ? "Edit Article" : "Create New Article"}
               </DialogTitle>
               <DialogDescription>
                 {editingArticle
-                  ? "Update the article details and save your changes."
-                  : "Fill in the details below to publish a new article or save it as a draft."}
+                  ? "Update the article details below."
+                  : "Fill in the details to create a new article."}
               </DialogDescription>
             </DialogHeader>
 
             {error && (
-              <Alert
-                variant="destructive"
-                className="relative border-red-200 bg-red-50 text-red-800 [&>svg]:text-red-600"
-              >
+              <Alert variant="destructive" className="relative">
+                <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Error</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="absolute right-2 top-2 h-6 w-6 p-0 text-red-700 hover:bg-red-100"
+                  className="absolute right-2 top-2 h-6 w-6 p-0"
                   onClick={clearError}
                 >
                   ×
@@ -486,27 +667,28 @@ export default function AdminArticlesPage() {
               </Alert>
             )}
 
-            <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+            <div className="flex-1 overflow-y-auto space-y-4 py-4 pr-2">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Title</label>
+                <label className="text-sm font-medium">Title *</label>
                 <Input
                   value={formData.title}
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, title: e.target.value }))
                   }
                   placeholder="Enter article title"
+                  className="text-base"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Author</label>
                   <Input
-                    value={formData.author}
+                    value={formData.author_name}
                     onChange={(e) =>
                       setFormData((prev) => ({
                         ...prev,
-                        author: e.target.value,
+                        author_name: e.target.value,
                       }))
                     }
                     placeholder="Author name"
@@ -522,7 +704,7 @@ export default function AdminArticlesPage() {
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select status" />
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="draft">Draft</SelectItem>
@@ -533,7 +715,21 @@ export default function AdminArticlesPage() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Content</label>
+                <label className="text-sm font-medium">Category</label>
+                <Input
+                  value={formData.category}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      category: e.target.value,
+                    }))
+                  }
+                  placeholder="Article category"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Content *</label>
                 <Textarea
                   value={formData.content}
                   onChange={(e) =>
@@ -542,14 +738,14 @@ export default function AdminArticlesPage() {
                       content: e.target.value,
                     }))
                   }
-                  rows={8}
+                  rows={12}
                   placeholder="Write your article content here..."
-                  className="resize-none"
+                  className="resize-none text-sm leading-relaxed"
                 />
               </div>
             </div>
 
-            <DialogFooter className="mt-4">
+            <DialogFooter className="mt-4 pt-4 border-t">
               <Button
                 variant="outline"
                 onClick={() => {
@@ -562,74 +758,55 @@ export default function AdminArticlesPage() {
               </Button>
               <Button
                 onClick={handleSaveArticle}
-                disabled={creating || updating || !formData.title.trim()}
+                disabled={
+                  creating ||
+                  updating ||
+                  !formData.title.trim() ||
+                  !formData.content.trim()
+                }
               >
-                {creating || updating ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {editingArticle ? "Updating..." : "Creating..."}
-                  </>
-                ) : editingArticle ? (
-                  "Save changes"
-                ) : (
-                  "Create article"
+                {(creating || updating) && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
+                {editingArticle ? "Update Article" : "Create Article"}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Total articles</CardDescription>
-            <CardTitle className="text-2xl">{totalArticles}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Published</CardDescription>
-            <CardTitle className="text-2xl text-green-600">
-              {publishedArticles}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Drafts</CardDescription>
-            <CardTitle className="text-2xl text-amber-600">
-              {draftArticles}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Total Views</CardDescription>
-            <CardTitle className="text-2xl text-blue-600">
-              {articles
-                .reduce((sum, article) => sum + getViewsCount(article), 0)
-                .toLocaleString()}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-      </div>
+      {/* Stats Cards */}
+      <StatsCards stats={stats} loading={loading} />
 
+      {/* Main Content Card */}
       <Card>
         <CardHeader>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle className="text-base">Articles</CardTitle>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <CardTitle className="text-xl font-semibold">Articles</CardTitle>
               <CardDescription>
-                Search, filter, edit, or delete articles.
+                Manage your published articles and drafts
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <Tabs
-                value={statusFilter === "all" ? "all" : statusFilter}
-                onValueChange={(value) => setStatusFilter(value)}
-              >
-                <TabsList className="h-8">
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Sort Dropdown */}
+              <Select value={sortBy} onValueChange={handleSortChange}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sortOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Status Filter Tabs */}
+              <Tabs value={statusFilter} onValueChange={setStatusFilter}>
+                <TabsList>
                   <TabsTrigger value="all" className="text-xs">
                     All
                   </TabsTrigger>
@@ -641,132 +818,208 @@ export default function AdminArticlesPage() {
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
+
               <Button
-                type="button"
                 variant="outline"
                 size="sm"
-                onClick={fetchArticles}
+                onClick={() => fetchArticles(pagination.current)}
                 disabled={loading}
+                className="gap-2"
               >
                 {loading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  "Refresh"
+                  <RefreshCw className="h-4 w-4" />
                 )}
+                Refresh
               </Button>
             </div>
           </div>
         </CardHeader>
+
         <CardContent className="space-y-4">
+          {/* Search Bar */}
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="relative w-full md:max-w-sm">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
               <Input
-                placeholder="Search by title or author..."
+                placeholder="Search articles by title or author..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-8 h-9"
+                className="pl-10"
               />
+            </div>
+
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <Filter className="h-4 w-4" />
+              <span>{filteredArticles.length} articles found</span>
             </div>
           </div>
 
-          {loading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          {/* Loading State */}
+          {loading && (
+            <div className="flex justify-center py-12">
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-600" />
+                <p className="text-sm text-gray-600">Loading articles...</p>
+              </div>
             </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead className="">Author Name</TableHead>
-                  <TableHead className="">Status</TableHead>
-                  <TableHead className="text-center">Views</TableHead>
-                  <TableHead className="text-center">Created At</TableHead>
-                  <TableHead className="w-[120px] text-center">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredArticles.map((article) => (
-                  <TableRow key={article.id}>
-                    <TableCell className="max-w-xs">
-                      <div className="flex items-center justify-left gap-2">
-                        <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <span className="line-clamp-1 text-sm font-medium">
-                          {article.title}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2 text-sm">
-                        <User className="h-3 w-3 text-muted-foreground" />
-                        {getAuthorName(article)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2 text-sm">
-                        <Badge
-                          variant={
-                            article.status === "published"
-                              ? "default"
-                              : "outline"
-                          }
-                          className="capitalize text-xs"
-                        >
-                          {article.status}
-                        </Badge>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-center gap-2">
-                        <Eye className="h-3 w-3 text-muted-foreground" />
-                        {getViewsCount(article).toLocaleString()}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                        <Calendar className="h-3 w-3" />
-                        {new Date(getCreatedDate(article)).toLocaleDateString()}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex justify-center gap-1">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600"
-                          onClick={() => openEditDialog(article)}
-                          disabled={deleteModal.isLoading}
-                        >
-                          <Edit2 className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-600"
-                          onClick={() => openDeleteModal(article)}
-                          disabled={deleteModal.isLoading}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {filteredArticles.length === 0 && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={6}
-                      className="py-8 text-center text-sm text-muted-foreground"
-                    >
-                      {articles.length === 0
-                        ? "No articles found. Create your first article!"
-                        : "No articles match the current filters."}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+          )}
+
+          {/* Error State */}
+          {error && !loading && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Articles Table */}
+          {!loading && !error && (
+            <>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[300px]">Title</TableHead>
+                      <TableHead className="text-center">Author</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-center">Views</TableHead>
+                      <TableHead className="text-center">Created At</TableHead>
+                      <TableHead className="text-center w-[120px]">
+                        Actions
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredArticles.map((article) => (
+                      <TableRow
+                        key={article.id}
+                        className="group hover:bg-gray-50/50"
+                      >
+                        <TableCell className="py-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <FileText className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                            <div className="min-w-0 flex-1 max-w-[400px]">
+                              <span
+                                className="font-medium text-gray-900 line-clamp-2 text-sm leading-tight block"
+                                title={article.title} // Show full title on hover
+                              >
+                                {article.title.length > 80
+                                  ? `${article.title.substring(0, 80)}...`
+                                  : article.title}
+                              </span>
+                              {article.category_name && (
+                                <span className="text-xs text-gray-500 mt-1 block">
+                                  {article.category_name}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <div className="flex items-center gap-2">
+                            <User className="h-3 w-3 text-gray-500" />
+                            <span className="text-sm font-medium text-gray-700">
+                              {getAuthorName(article)}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <Badge
+                            variant={
+                              getStatus(article) === "published"
+                                ? "default"
+                                : "secondary"
+                            }
+                            className="capitalize text-xs"
+                          >
+                            {getStatus(article)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <div className="flex items-center justify-center gap-2">
+                            <Eye className="h-3 w-3 text-gray-500" />
+                            <span className="text-sm font-medium text-gray-900">
+                              {getViewsCount(article).toLocaleString()}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
+                            <Calendar className="h-3 w-3" />
+                            {new Date(
+                              getCreatedDate(article)
+                            ).toLocaleDateString()}
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <div className="flex justify-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => openEditDialog(article)}
+                              disabled={deleteModal.isLoading}
+                              className="h-8 w-8 p-0 hover:bg-gray-200"
+                              title="Edit article"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => openDeleteModal(article)}
+                              disabled={deleteModal.isLoading}
+                              className="h-8 w-8 p-0 text-red-600 hover:bg-red-50"
+                              title="Delete article"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+
+                    {filteredArticles.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="py-12 text-center">
+                          <div className="flex flex-col items-center gap-3 text-gray-500">
+                            <FileText className="h-12 w-12 opacity-20" />
+                            <div>
+                              <p className="font-medium text-gray-900">
+                                No articles found
+                              </p>
+                              <p className="text-sm mt-1">
+                                {articles.length === 0
+                                  ? "Get started by creating your first article."
+                                  : "Try adjusting your search or filters."}
+                              </p>
+                            </div>
+                            {articles.length === 0 && (
+                              <Button
+                                onClick={openCreateDialog}
+                                className="mt-2"
+                              >
+                                <Plus className="mr-2 h-4 w-4" />
+                                Create Article
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Enhanced Pagination */}
+              <Pagination
+                pagination={pagination}
+                onPageChange={handlePageChange}
+                loading={loading}
+              />
+            </>
           )}
         </CardContent>
       </Card>

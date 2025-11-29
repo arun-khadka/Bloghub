@@ -16,7 +16,7 @@ urlpatterns = [
     path("login/", LoginView.as_view(), name="login"),
     path("admin/login/", AdminLoginView.as_view(), name="admin-login"),
     path("profile/", ProfileView.as_view(), name="profile"),
-
+    
     # Admin user management endpoints
     path("admin/users/", UserListView.as_view(), name="admin-users-list"),
     
