@@ -200,14 +200,14 @@ export default function AdminLayout({ children }) {
                 className="h-9 w-59"
               />
             </div>
-            {/* <Button
+            <Button
               size="sm"
               variant="outline"
               className="hidden sm:inline-flex"
             >
               <BarChart3 className="h-4 w-4 mr-1" />
-              View Reports
-            </Button> */}
+              <Link href="/admin/">View Reports</Link>
+            </Button>
           </div>
         </div>
 

@@ -281,9 +281,16 @@ class ArticlesByCategorySlugAPIView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+
 # ------------------------
 # List Categories (Public)
 # ------------------------
+class CategoryPagination(PageNumberPagination):
+    page_size = 6  # Default items per page
+    page_size_query_param = "limit"  # Allow frontend to change limit
+    max_page_size = 100
+
+
 class CategoryListAPIView(APIView):
     permission_classes = [permissions.AllowAny]
 
@@ -300,11 +307,9 @@ class CategoryListAPIView(APIView):
                     Q(icon_name__icontains=search_query)
                 )
 
-            # Pagination Logic
-            paginator = PageNumberPagination()
-            paginator.page_size = 6
+            # Pagination
+            paginator = CategoryPagination()
             paginated_categories = paginator.paginate_queryset(categories, request)
-
             serializer = CategorySerializer(paginated_categories, many=True)
 
             return paginator.get_paginated_response({

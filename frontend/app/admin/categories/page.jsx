@@ -33,6 +33,7 @@ import {
   Trash2,
   X,
   Save,
+  Filter,
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
@@ -188,9 +189,21 @@ function Pagination({ pagination, onPageChange, loading }) {
   };
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-2 py-4">
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-2 py-4 border-t">
       <div className="text-sm text-muted-foreground">
-        Page {current_page} of {total_pages} • {total_count} total categories
+        {/* Page {current_page} of {total_pages} */}
+        <div className="text-sm text-gray-600">
+          Showing{" "}
+          <span className="font-semibold text-gray-900">
+            {(pagination.current_page - 1) * 6 + 1}-
+            {Math.min(pagination.current_page * 6, pagination.total_count)}
+          </span>{" "}
+          of{" "}
+          <span className="font-semibold text-gray-900">
+            {pagination.total_count}
+          </span>{" "}
+          categories
+        </div>
       </div>
       <div className="flex items-center space-x-1">
         <Button
@@ -282,6 +295,10 @@ export default function AdminCategoriesPage() {
     search: "",
   });
 
+  // Search state
+  const [searchInput, setSearchInput] = useState("");
+  const [searchLoading, setSearchLoading] = useState(false);
+
   // Pagination state
   const [pagination, setPagination] = useState({
     current_page: 1,
@@ -325,13 +342,16 @@ export default function AdminCategoriesPage() {
       setError("");
       setSuccess("");
 
-      const params = new URLSearchParams({
-        page: filters.page.toString(),
-      });
+      const params = new URLSearchParams();
 
       // Add search parameter if search term exists
       if (filters.search.trim()) {
         params.append("search", filters.search.trim());
+      }
+
+      // Add pagination parameters
+      if (filters.page > 1) {
+        params.append("page", filters.page.toString());
       }
 
       const response = await axios.get(
@@ -348,6 +368,7 @@ export default function AdminCategoriesPage() {
       let totalCount = 0;
       let hasNext = false;
       let hasPrevious = false;
+      let currentPage = filters.page;
 
       // Structure: DRF pagination with custom wrapper in results
       if (
@@ -356,23 +377,45 @@ export default function AdminCategoriesPage() {
         Array.isArray(responseData.results.data)
       ) {
         categoriesData = responseData.results.data;
-        totalCount = responseData.count || 0;
+        totalCount = responseData.count || categoriesData.length;
         hasNext = responseData.next !== null;
         hasPrevious = responseData.previous !== null;
+
+        // Extract current page from next/previous URLs if available
+        if (responseData.next) {
+          const nextUrl = new URL(responseData.next);
+          const nextPage = nextUrl.searchParams.get("page");
+          if (nextPage) {
+            currentPage = parseInt(nextPage) - 1;
+          }
+        } else if (responseData.previous) {
+          const prevUrl = new URL(responseData.previous);
+          const prevPage = prevUrl.searchParams.get("page");
+          if (prevPage) {
+            currentPage = parseInt(prevPage) + 1;
+          }
+        }
       }
       // Alternative structure: Direct data array
       else if (Array.isArray(responseData.data) && responseData.success) {
         categoriesData = responseData.data;
-        totalCount = responseData.count || 0;
+        totalCount = responseData.count || categoriesData.length;
         hasNext = responseData.next !== null;
         hasPrevious = responseData.previous !== null;
       }
       // Standard DRF structure
       else if (Array.isArray(responseData.results)) {
         categoriesData = responseData.results;
-        totalCount = responseData.count || 0;
+        totalCount = responseData.count || categoriesData.length;
         hasNext = responseData.next !== null;
         hasPrevious = responseData.previous !== null;
+      }
+      // Fallback: direct array
+      else if (Array.isArray(responseData)) {
+        categoriesData = responseData;
+        totalCount = responseData.length;
+        hasNext = false;
+        hasPrevious = false;
       }
 
       setCategories(categoriesData);
@@ -382,7 +425,7 @@ export default function AdminCategoriesPage() {
       const totalPages = Math.ceil(totalCount / pageSize);
 
       const paginationData = {
-        current_page: filters.page,
+        current_page: currentPage,
         total_pages: totalPages || 1,
         has_previous: hasPrevious,
         has_next: hasNext,
@@ -393,7 +436,9 @@ export default function AdminCategoriesPage() {
 
       // Only show success toast on initial load
       if (!initialLoadRef.current && categoriesData.length > 0) {
-        toast.success("Categories loaded successfully!");
+        toast.success("Categories loaded successfully!", {
+          position: "top-center",
+        });
         initialLoadRef.current = true;
       }
 
@@ -404,6 +449,7 @@ export default function AdminCategoriesPage() {
       console.error("Error fetching categories:", err);
       const errorMessage =
         err.response?.data?.message ||
+        err.response?.data?.error ||
         "Failed to load categories. Please try again.";
       setError(errorMessage);
 
@@ -421,6 +467,7 @@ export default function AdminCategoriesPage() {
       });
     } finally {
       setLoading(false);
+      setSearchLoading(false);
     }
   }, [filters]);
 
@@ -449,12 +496,17 @@ export default function AdminCategoriesPage() {
     }
   }, [error, success]);
 
-  // Handle search with debouncing
+  // Handle search input change with debouncing
   const handleSearchChange = (value) => {
+    setSearchInput(value);
+
     // Clear existing timeout
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
+
+    // Set loading state
+    setSearchLoading(true);
 
     // Set new timeout for debounced search
     searchTimeoutRef.current = setTimeout(() => {
@@ -466,12 +518,27 @@ export default function AdminCategoriesPage() {
     }, 500);
   };
 
-  // Handle page change
-  const handlePageChange = (newPage) => {
+  // Clear search function
+  const clearSearch = () => {
+    setSearchInput("");
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
     setFilters((prev) => ({
       ...prev,
-      page: newPage,
+      search: "",
+      page: 1,
     }));
+  };
+
+  // Handle page change
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= pagination.total_pages) {
+      setFilters((prev) => ({
+        ...prev,
+        page: newPage,
+      }));
+    }
   };
 
   // Validate individual field
@@ -602,6 +669,7 @@ export default function AdminCategoriesPage() {
       console.error("Error creating category:", err);
       const apiMessage =
         err.response?.data?.message ||
+        err.response?.data?.error ||
         (typeof err.response?.data === "string"
           ? err.response.data
           : "Failed to create category. Please check your input and try again.");
@@ -617,7 +685,7 @@ export default function AdminCategoriesPage() {
     setEditingId(category.id);
     setEditDraft({
       name: category.name,
-      iconName: category.icon_name || "",
+      iconName: category.icon_name || category.iconName || "",
     });
   };
 
@@ -676,7 +744,9 @@ export default function AdminCategoriesPage() {
     } catch (err) {
       console.error("Error updating category:", err);
       const errorMessage =
-        err.response?.data?.message || "Failed to update category.";
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        "Failed to update category.";
       toast.error(errorMessage);
     }
   };
@@ -736,7 +806,9 @@ export default function AdminCategoriesPage() {
     } catch (err) {
       console.error("Error deleting category:", err);
       const errorMessage =
-        err.response?.data?.message || "Failed to delete category.";
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        "Failed to delete category.";
       toast.error(errorMessage);
       closeDeleteModal();
     }
@@ -957,10 +1029,25 @@ export default function AdminCategoriesPage() {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
                 <Input
                   placeholder="Search by name or icon..."
-                  value={filters.search}
+                  value={searchInput}
                   onChange={(e) => handleSearchChange(e.target.value)}
-                  className="h-9 pl-10"
+                  className="h-9 pl-10 pr-10"
                 />
+                {searchInput && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearSearch}
+                    className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-transparent"
+                    disabled={searchLoading}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
+                {searchLoading && (
+                  <Loader2 className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-gray-500" />
+                )}
               </div>
             </div>
             <Button
@@ -976,7 +1063,7 @@ export default function AdminCategoriesPage() {
                   Refreshing...
                 </>
               ) : (
-                "Refresh list"
+                "Refresh"
               )}
             </Button>
           </div>
@@ -1048,7 +1135,9 @@ export default function AdminCategoriesPage() {
                                 />
                               ) : (
                                 <Badge variant="outline">
-                                  {category.icon_name || "—"}
+                                  {category.icon_name ||
+                                    category.iconName ||
+                                    "—"}
                                 </Badge>
                               )}
                             </TableCell>
