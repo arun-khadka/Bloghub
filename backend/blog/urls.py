@@ -6,7 +6,7 @@ from .views import (
     ArticleListView,
     ArticleRetrieveView,
     ArticleSearchView,
-    ArticleUpdateByIdView,
+    ArticleUpdateView,
     ArticlesByAuthorView,
     IncrementArticleViews,
     LatestArticlesView,
@@ -36,7 +36,7 @@ urlpatterns = [
         name="increment-article-views",
     ),
     # Update & Delete by ID
-    path("<int:id>/update/", ArticleUpdateByIdView.as_view(), name="article-update"),
-    path("<int:id>/delete/", ArticleDeleteByIdView.as_view(), name="article-delete"),
+    path("update/<int:article_id>/", ArticleUpdateView.as_view(), name="article-update"),
+    path("delete/<int:id>/", ArticleDeleteByIdView.as_view(), name="article-delete"),
     path("<slug:slug>/", ArticleDetailView.as_view(), name="article-detail-slug"),
 ]

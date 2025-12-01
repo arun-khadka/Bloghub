@@ -6,6 +6,8 @@ from rest_framework.pagination import PageNumberPagination
 from django.db.models import F, Q
 from django.db.models import Sum
 from django.shortcuts import get_object_or_404
+
+from category.models import Category
 from .models import Article
 from authors.models import Author
 from .serializers import ArticleSerializer
@@ -314,41 +316,70 @@ class IncrementArticleViews(APIView):
             )
 
 
-# -------------------------
-# UPDATE ARTICLE
-# -------------------------
-class ArticleUpdateByIdView(APIView):
+# --------------------------------
+# ARTICLE UPDATE VIEW
+# --------------------------------
+class ArticleUpdateView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def put(self, request, id):
-        article = get_object_or_404(Article, id=id, is_deleted=False)
+    def put(self, request, article_id):
+        return self.update_article(request, article_id)
 
-        # Ensure the logged-in user owns this article
-        if article.author.user != request.user:
-            return Response(
-                {
-                    "success": False,
-                    "message": "You do not have permission to edit this article.",
-                },
-                status=status.HTTP_403_FORBIDDEN,
+    def patch(self, request, article_id):
+        return self.update_article(request, article_id)
+
+    def update_article(self, request, article_id):
+        user = request.user
+
+        # 1️⃣ Fetch article
+        try:
+            article = Article.objects.get(id=article_id, is_deleted=False)
+        except Article.DoesNotExist:
+            return error_response(
+                "Article not found",
+                code=status.HTTP_404_NOT_FOUND
             )
 
+        # 2️⃣ Permissions: only admin OR author who created it
+        if not user.is_admin:
+            try:
+                author_profile = Author.objects.get(user=user)
+                if article.author != author_profile:
+                    return error_response(
+                        "You do not have permission to update this article",
+                        code=status.HTTP_403_FORBIDDEN
+                    )
+            except Author.DoesNotExist:
+                return error_response(
+                    "You do not have permission to update this article",
+                    code=status.HTTP_403_FORBIDDEN
+                )
+
+        # 3️⃣ Deserialize and validate update
         serializer = ArticleSerializer(article, data=request.data, partial=True)
+
         if serializer.is_valid():
-            serializer.save()
-            return Response(
-                {
-                    "success": True,
-                    "data": serializer.data,
-                    "message": "Article updated successfully.",
-                },
-                status=status.HTTP_200_OK,
+            # Validate category if provided
+            category = serializer.validated_data.get("category")
+            if category and not Category.objects.filter(id=category.id).exists():
+                return error_response(
+                    {"category": "Invalid category ID"},
+                    code=status.HTTP_400_BAD_REQUEST
+                )
+
+            updated_article = serializer.save()
+
+            return success_response(
+                ArticleSerializer(updated_article).data,
+                "Article updated successfully"
             )
 
-        return Response(
-            {"success": False, "errors": serializer.errors, "message": "Invalid data."},
-            status=status.HTTP_400_BAD_REQUEST,
+        return error_response(
+            "Validation error",
+            serializer.errors,
+            code=status.HTTP_400_BAD_REQUEST
         )
+
 
 
 # -------------------------
