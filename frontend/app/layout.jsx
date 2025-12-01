@@ -23,7 +23,7 @@ export default function RootLayout({ children }) {
           position="bottom-right"
           duration={5000}
           theme="system"
-          closeButton
+          // closeButton
           richColors
           toastOptions={{
             style: {

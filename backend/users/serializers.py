@@ -2,6 +2,7 @@ from django.contrib.auth import authenticate
 from rest_framework import serializers
 from .models import User
 from blog.models import Article 
+from authors.models import Author
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -39,7 +40,8 @@ class LoginSerializer(serializers.Serializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     is_author = serializers.SerializerMethodField()
     role = serializers.SerializerMethodField()
-
+    author_bio = serializers.SerializerMethodField()
+    social_links = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -51,14 +53,15 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "is_admin",
             "date_joined",
             "is_author",
-            "role" 
+            "role",
+            "author_bio",
+            "social_links",
         ]
         read_only_fields = ["id", "email", "is_active", "is_admin", "date_joined"]
 
     def get_is_author(self, obj):
-        # Check if an Author profile exists for this user
         return hasattr(obj, "author_profile")
-    
+
     def get_role(self, obj):
         if obj.is_admin:
             return "admin"
@@ -67,7 +70,18 @@ class UserProfileSerializer(serializers.ModelSerializer):
         else:
             return "reader"
 
+    def get_author_bio(self, obj):
+        if hasattr(obj, "author_profile"):
+            return obj.author_profile.bio
+        return None  # or "" if you prefer
 
+    def get_social_links(self, obj):
+        if hasattr(obj, "author_profile"):
+            return obj.author_profile.social_links
+        return {}  # or None
+
+
+# User list serializer
 class UserListSerializer(serializers.ModelSerializer):
     role = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
@@ -116,6 +130,7 @@ class UserListSerializer(serializers.ModelSerializer):
         return obj.is_author
 
 
+#Admin login serializer
 class AdminLoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
@@ -130,3 +145,66 @@ class AdminLoginSerializer(serializers.Serializer):
             raise serializers.ValidationError("You are not authorized to access admin panel")
         data["user"] = user
         return data
+
+
+# Admin user update serializer
+class AdminUserUpdateSerializer(serializers.ModelSerializer):
+    role = serializers.CharField(required=False, allow_blank=True)
+    status = serializers.CharField(required=False, allow_blank=True)
+
+    class Meta:
+        model = User
+        fields = [
+            "fullname",
+            "email",
+            "role",    # admin | author | reader
+            "status",  # active | suspended
+        ]
+
+    def update(self, instance, validated_data):
+        # Update fullname
+        if "fullname" in validated_data:
+            instance.fullname = validated_data["fullname"]
+
+        # Update email
+        if "email" in validated_data:
+            instance.email = validated_data["email"]
+
+        # Update role
+        role = validated_data.get("role")
+        if role:
+            role = role.lower().strip()
+
+            if role == "admin":
+                instance.is_admin = True
+                instance.is_author = False
+                # Remove author profile if it exists
+                if hasattr(instance, "author_profile"):
+                    instance.author_profile.delete()
+
+            elif role == "author":
+                instance.is_admin = False
+                instance.is_author = True
+                # Create Author profile if it doesn't exist
+                if not hasattr(instance, "author_profile"):
+                    Author.objects.create(
+                        user=instance,
+                        bio="Hey! Please update your bio.",
+                        social_links={"twitter": "https://twitter.com/", "facebook": "https://facebook.com/"}
+                    )
+
+            elif role == "reader":
+                instance.is_admin = False
+                instance.is_author = False
+                # Delete author profile if exists
+                if hasattr(instance, "author_profile"):
+                    instance.author_profile.delete()
+
+        # Update status
+        status_value = validated_data.get("status")
+        if status_value:
+            instance.is_active = status_value.lower().strip() == "active"
+
+        # Save updated user
+        instance.save()
+        return instance

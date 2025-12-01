@@ -329,3 +329,30 @@ class CategoryListAPIView(APIView):
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+# For all categories (dropdowns, forms)
+class CategoryDropdownAPIView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        try:
+            categories = Category.objects.filter(is_active=True).order_by("name")
+            serializer = CategorySerializer(categories, many=True)
+            
+            return Response({
+                "success": True,
+                "message": "All categories retrieved successfully",
+                "data": serializer.data,
+                "errors": None
+            })
+        except Exception as e:
+            return Response(
+                {
+                    "success": False,
+                    "message": "Internal server error",
+                    "errors": {"server": str(e)},
+                    "data": None
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

@@ -102,8 +102,7 @@ export default function CreateArticlePage() {
   const fetchCategories = async () => {
     try {
       const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/category/list/`
-      );
+        `${process.env.NEXT_PUBLIC_API_URL}/api/category/dropdown/`);
 
       // FIX: Extract the categories array from the response
       if (response.data.success && Array.isArray(response.data.data)) {

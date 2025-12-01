@@ -13,6 +13,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from .serializers import (
     AdminLoginSerializer,
+    AdminUserUpdateSerializer,
     RegisterSerializer,
     LoginSerializer,
     UserListSerializer,
@@ -100,6 +101,7 @@ class ProfileView(APIView):
         return success_response(serializer.data, "Profile updated successfully")
 
 
+# User list view for admin panel
 class UserListView(APIView):
     # permission_classes = [permissions.IsAdminUser]
 
@@ -180,52 +182,50 @@ class UserListView(APIView):
 
 # Admin User Update View
 class AdminUserUpdateView(APIView):
-    permission_classes = [permissions.IsAdminUser]
+    # permission_classes = [permissions.IsAdminUser]
 
     def put(self, request, user_id):
         try:
             user = User.objects.get(id=user_id)
 
-            # Update basic fields
-            if "fullname" in request.data:
-                user.fullname = request.data["fullname"]
+            # Use serializer for partial updates
+            serializer = AdminUserUpdateSerializer(user, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            updated_user = serializer.save()
 
-            if "email" in request.data:
-                user.email = request.data["email"]
-
-            # Handle role changes
-            if "role" in request.data:
-                role = request.data["role"]
-                if role == "admin":
-                    user.is_admin = True
-                    user.is_author = False
-                elif role == "author":
-                    user.is_admin = False
-                    user.is_author = True
-                elif role == "reader":
-                    user.is_admin = False
-                    user.is_author = False
-
-            # Handle status changes
-            if "status" in request.data:
-                user.is_active = request.data["status"] == "active"
-
-            user.save()
-
-            # Return updated user data
-            serializer = UserListSerializer(user)
-            return success_response(
-                serializer.data, "User updated successfully", status.HTTP_200_OK
+            # Return updated user data directly
+            return Response(
+                {
+                    "success": True,
+                    "message": "User updated successfully",
+                    "data": {
+                        "id": updated_user.id,
+                        "email": updated_user.email,
+                        "fullname": updated_user.fullname,
+                        "is_admin": updated_user.is_admin,
+                        "is_author": updated_user.is_author,
+                        "is_active": updated_user.is_active,
+                        "role": (
+                            "admin" if updated_user.is_admin else
+                            "author" if updated_user.is_author else
+                            "reader"
+                        )
+                    },
+                },
+                status=status.HTTP_200_OK
             )
 
         except User.DoesNotExist:
-            return error_response("User not found", status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return error_response(
-                f"Error updating user: {str(e)}",
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            return Response(
+                {"success": False, "message": "User not found", "data": None},
+                status=status.HTTP_404_NOT_FOUND
             )
-
+        except Exception as e:
+            return Response(
+                {"success": False, "message": f"Error updating user: {str(e)}", "data": None},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+            
 
 # Admin User Delete View
 class AdminUserDeleteView(APIView):

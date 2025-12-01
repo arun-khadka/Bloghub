@@ -21,13 +21,13 @@ urlpatterns = [
     path("admin/users/", UserListView.as_view(), name="admin-users-list"),
     
     path(
-        "admin/users/<int:user_id>/",
+        "admin/users/update/<int:user_id>/",
         AdminUserUpdateView.as_view(),
         name="admin-user-update",
     ),
 
     path(
-        "admin/users/<int:user_id>/delete/",
+        "admin/users/delete/<int:user_id>/",
         AdminUserDeleteView.as_view(),
         name="admin-user-delete",
     ),

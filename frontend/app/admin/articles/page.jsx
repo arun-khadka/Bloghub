@@ -19,18 +19,9 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+
 import {
   Select,
   SelectTrigger,
@@ -265,12 +256,9 @@ function Pagination({ pagination, onPageChange, loading }) {
 export default function AdminArticlesPage() {
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [updating, setUpdating] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("date_desc");
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [editingArticle, setEditingArticle] = useState(null);
   const [error, setError] = useState("");
   const [stats, setStats] = useState(null);
@@ -630,149 +618,6 @@ export default function AdminArticlesPage() {
             Manage and organize your articles
           </p>
         </div>
-
-        {/* Create Article Dialog */}
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={openCreateDialog} className="gap-2 h-10">
-              <Plus className="h-4 w-4" />
-              New Article
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-            <DialogHeader className="pb-4">
-              <DialogTitle className="text-xl font-semibold">
-                {editingArticle ? "Edit Article" : "Create New Article"}
-              </DialogTitle>
-              <DialogDescription>
-                {editingArticle
-                  ? "Update the article details below."
-                  : "Fill in the details to create a new article."}
-              </DialogDescription>
-            </DialogHeader>
-
-            {error && (
-              <Alert variant="destructive" className="relative">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-2 top-2 h-6 w-6 p-0"
-                  onClick={clearError}
-                >
-                  ×
-                </Button>
-              </Alert>
-            )}
-
-            <div className="flex-1 overflow-y-auto space-y-4 py-4 pr-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Title *</label>
-                <Input
-                  value={formData.title}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, title: e.target.value }))
-                  }
-                  placeholder="Enter article title"
-                  className="text-base"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Author</label>
-                  <Input
-                    value={formData.author_name}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        author_name: e.target.value,
-                      }))
-                    }
-                    placeholder="Author name"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Status</label>
-                  <Select
-                    value={formData.status}
-                    onValueChange={(value) =>
-                      setFormData((prev) => ({ ...prev, status: value }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="draft">Draft</SelectItem>
-                      <SelectItem value="published">Published</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Category</label>
-                <Input
-                  value={formData.category}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      category: e.target.value,
-                    }))
-                  }
-                  placeholder="Article category"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Content *</label>
-                <Textarea
-                  value={formData.content}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      content: e.target.value,
-                    }))
-                  }
-                  rows={12}
-                  placeholder="Write your article content here..."
-                  className="resize-none text-sm leading-relaxed"
-                />
-              </div>
-            </div>
-
-            <DialogFooter className="mt-4 pt-4 border-t">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setDialogOpen(false);
-                  resetForm();
-                }}
-                disabled={creating || updating}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSaveArticle}
-                disabled={
-                  creating ||
-                  updating ||
-                  !formData.title.trim() ||
-                  !formData.content.trim()
-                }
-              >
-                {(creating || updating) && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                {editingArticle ? "Update Article" : "Create Article"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
 
       {/* Stats Cards */}

@@ -3,6 +3,7 @@ from .views import (
     ArticlesByCategoryAPIView,
     ArticlesByCategorySlugAPIView,
     CategoryDeleteAPIView,
+    CategoryDropdownAPIView,
     CategoryListAPIView,
     CategoryCreateAPIView,
     CategoryUpdateAPIView,
@@ -10,6 +11,7 @@ from .views import (
 
 urlpatterns = [
     path("list/", CategoryListAPIView.as_view(), name="category-list"),
+    path("dropdown/", CategoryDropdownAPIView.as_view(), name="category-dropdown"),
     path("create/", CategoryCreateAPIView.as_view(), name="category-create"),
     path("update/<int:pk>/", CategoryUpdateAPIView.as_view(), name="category-update"),
     path("delete/<int:pk>/", CategoryDeleteAPIView.as_view(), name="category-delete"),

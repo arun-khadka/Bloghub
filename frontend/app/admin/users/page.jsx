@@ -270,7 +270,9 @@ export default function AdminUsersPage() {
     } catch (err) {
       setError(err.message);
       console.error("Error fetching users:", err);
-      toast.error(`Failed to load users: ${err.message}`);
+      toast.error(`Failed to load users: ${err.message}`, {
+        position: "top-center"
+      });
     } finally {
       setLoading(false);
     }
@@ -283,7 +285,7 @@ export default function AdminUsersPage() {
       const token = localStorage.getItem("accessToken");
 
       const response = await fetch(
-        `http://127.0.0.1:8000/api/auth/admin/users/${userId}/`,
+        `http://127.0.0.1:8000/api/auth/admin/users/update/${userId}/`,
         {
           method: "PUT",
           headers: {
@@ -311,7 +313,9 @@ export default function AdminUsersPage() {
       const data = await response.json();
 
       if (data.success) {
-        toast.success("User updated successfully!");
+        toast.success("User updated successfully!", {
+          position: "top-center"
+        });
         await fetchUsers();
         return true;
       } else {
@@ -321,7 +325,9 @@ export default function AdminUsersPage() {
       const errorMessage = err.message || "Failed to update user";
       setError(errorMessage);
       console.error("Error updating user:", err);
-      toast.error(`Failed to update user: ${errorMessage}`);
+      toast.error(`Failed to update user: ${errorMessage}`, {
+        position: "top-center"
+      });
       return false;
     } finally {
       setSaving(false);
@@ -333,7 +339,7 @@ export default function AdminUsersPage() {
     try {
       const token = localStorage.getItem("accessToken");
       const response = await fetch(
-        `http://127.0.0.1:8000/api/auth/admin/users/${userId}/`,
+        `http://127.0.0.1:8000/api/auth/admin/users/delete/${userId}/`,
         {
           method: "DELETE",
           headers: {
@@ -355,7 +361,9 @@ export default function AdminUsersPage() {
       const data = await response.json();
 
       if (data.success) {
-        toast.success("User deleted successfully!");
+        toast.success("User deleted successfully!", {
+          position: "top-center"
+        });
         await fetchUsers();
         return true;
       } else {
@@ -365,7 +373,9 @@ export default function AdminUsersPage() {
       const errorMessage = err.message || "Failed to delete user";
       setError(errorMessage);
       console.error("Error deleting user:", err);
-      toast.error(`Failed to delete user: ${errorMessage}`);
+      toast.error(`Failed to delete user: ${errorMessage}`, {
+        position: "top-center"
+      });
       return false;
     }
   };
@@ -396,7 +406,9 @@ export default function AdminUsersPage() {
   const openDeleteModal = (user) => {
     // Prevent deleting own account
     if (user.id === currentUserId) {
-      toast.error("You cannot delete your own account.");
+      toast.error("You cannot delete your own account.", {
+        position: "top-center"
+      });
       return;
     }
 
@@ -441,6 +453,7 @@ export default function AdminUsersPage() {
       toast.warning(
         "You cannot edit your own account from this page. Please use your profile settings.",
         {
+          position: "top-center",
           duration: 5000,
         }
       );
@@ -472,12 +485,16 @@ export default function AdminUsersPage() {
     const errors = validateEditForm(editDraft);
     if (Object.keys(errors).length > 0) {
       setEditErrors(errors);
-      toast.error("Please fix the validation errors before saving.");
+      toast.error("Please fix the validation errors before saving.", {
+        position: "top-center"
+      });
       return;
     }
 
     if (editingId === currentUserId) {
-      toast.error("Security violation: Cannot edit your own account.");
+      toast.error("Security violation: Cannot edit your own account.", {
+        position: "top-center"
+      });
       cancelEdit();
       return;
     }
