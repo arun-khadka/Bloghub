@@ -4,6 +4,7 @@ from .models import User
 from blog.models import Article 
 from authors.models import Author
 
+
 # --------------------------------
 # REGISTER SERIALIZER
 # --------------------------------
@@ -43,6 +44,7 @@ class LoginSerializer(serializers.Serializer):
         return data
 
 
+
 # --------------------------------
 # USER PROFILE SERIALIZER
 # --------------------------------
@@ -69,25 +71,25 @@ class UserProfileSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "email", "is_active", "is_admin", "date_joined"]
 
     def get_is_author(self, obj):
-        return hasattr(obj, "author_profile")
+        return obj.is_author
 
     def get_role(self, obj):
         if obj.is_admin:
             return "admin"
         elif obj.is_author:
             return "author"
-        else:
-            return "reader"
+        return "reader"
 
     def get_author_bio(self, obj):
-        if hasattr(obj, "author_profile"):
+        if obj.is_author and hasattr(obj, "author_profile"):
             return obj.author_profile.bio
-        return None  # or "" if you prefer
+        return None
 
     def get_social_links(self, obj):
-        if hasattr(obj, "author_profile"):
+        if obj.is_author and hasattr(obj, "author_profile"):
             return obj.author_profile.social_links
-        return {}  # or None
+        return None
+
 
 
 # --------------------------------
@@ -192,36 +194,38 @@ class AdminUserUpdateSerializer(serializers.ModelSerializer):
         if role:
             role = role.lower().strip()
 
+            # ========== ADMIN ==========
             if role == "admin":
                 instance.is_admin = True
-                instance.is_author = False
-                # Remove author profile if it exists
-                if hasattr(instance, "author_profile"):
-                    instance.author_profile.delete()
+                instance.is_author = False   
+                # Keep author_profile if exists (DO NOT delete)
 
+            # ========== AUTHOR ==========
             elif role == "author":
                 instance.is_admin = False
                 instance.is_author = True
-                # Create Author profile if it doesn't exist
+
+                # Create author profile only if missing
                 if not hasattr(instance, "author_profile"):
                     Author.objects.create(
                         user=instance,
                         bio="Hey! Please update your bio.",
-                        social_links={"twitter": "https://twitter.com/", "facebook": "https://facebook.com/"}
+                        social_links={
+                            "twitter": "https://twitter.com/",
+                            "facebook": "https://facebook.com/"
+                        }
                     )
 
+            # ========== READER ==========
             elif role == "reader":
                 instance.is_admin = False
-                instance.is_author = False
-                # Delete author profile if exists
-                if hasattr(instance, "author_profile"):
-                    instance.author_profile.delete()
+                instance.is_author = False   
+                # Do NOT delete author_profile
 
         # Update status
         status_value = validated_data.get("status")
         if status_value:
             instance.is_active = status_value.lower().strip() == "active"
 
-        # Save updated user
         instance.save()
         return instance

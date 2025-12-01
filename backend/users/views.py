@@ -195,6 +195,7 @@ class UserListView(APIView):
             )
 
 
+
 # --------------------------------
 # ADMIN USER UPDATE VIEW
 # --------------------------------
@@ -244,6 +245,7 @@ class AdminUserUpdateView(APIView):
             )
             
 
+
 # --------------------------------
 # ADMIN USER DELETE VIEW
 # --------------------------------
@@ -272,6 +274,7 @@ class AdminUserDeleteView(APIView):
                 f"Error deleting user: {str(e)}",
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
 
 
 # --------------------------------

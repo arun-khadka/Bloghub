@@ -27,7 +27,6 @@ export default function CreateArticlePage() {
   const { user, loading } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const [isAuthor, setIsAuthor] = useState(false);
   const [toast, setToast] = useState(null);
   const [categories, setCategories] = useState([]);
   const [imageFile, setImageFile] = useState(null);
@@ -47,8 +46,14 @@ export default function CreateArticlePage() {
       router.push("/login");
     }
     if (user?.id) {
-      checkAuthorStatus();
       fetchCategories();
+    }
+  }, [user, loading, router]);
+
+  // Redirect if not logged in or not author
+  useEffect(() => {
+    if (!loading && (!user || !user.is_author)) {
+      router.push("/");
     }
   }, [user, loading, router]);
 
@@ -79,30 +84,11 @@ export default function CreateArticlePage() {
     setSavedDraft(null);
   };
 
-  const checkAuthorStatus = async () => {
-    try {
-      const token = localStorage.getItem("accessToken");
-      const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/authors/${user.id}/`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-      if (response.status === 200) {
-        setIsAuthor(true);
-      }
-    } catch (err) {
-      console.error("Error checking author status:", err);
-      setIsAuthor(false);
-    }
-  };
-
   const fetchCategories = async () => {
     try {
       const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/category/dropdown/`);
+        `${process.env.NEXT_PUBLIC_API_URL}/api/category/dropdown/`
+      );
 
       // FIX: Extract the categories array from the response
       if (response.data.success && Array.isArray(response.data.data)) {

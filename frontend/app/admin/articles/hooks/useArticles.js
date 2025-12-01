@@ -167,7 +167,7 @@ export const useArticles = ({ search, statusFilter, sortBy }) => {
 
   const clearError = () => setError("");
 
-  // Auto-clear error after 5 seconds
+ 
   useEffect(() => {
     if (error) {
       const timer = setTimeout(() => {
@@ -177,7 +177,6 @@ export const useArticles = ({ search, statusFilter, sortBy }) => {
     }
   }, [error]);
 
-  // Initial load
   useEffect(() => {
     fetchArticles();
   }, [fetchArticles]);

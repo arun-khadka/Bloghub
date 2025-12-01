@@ -38,7 +38,7 @@ export const useArticleForm = ({ fetchArticles, pagination }) => {
   const fetchCategories = async () => {
     try {
       const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/category/dropdown/` // Adjust this endpoint
+        `${process.env.NEXT_PUBLIC_API_URL}/api/category/dropdown/` 
       );
       setCategories(response.data.results || response.data || []);
     } catch (err) {
@@ -87,11 +87,11 @@ export const useArticleForm = ({ fetchArticles, pagination }) => {
       ...prev,
       [field]: value
     }));
-    // Clear error when user starts typing
+    // Clear error when user st arts typing
     if (formError) setFormError("");
   };
 
-  // Handle form submission - FIXED VERSION
+  // Handle form submission 
   const handleFormSubmit = async (data) => {
     // Validation
     if (!data.title.trim()) {
@@ -232,6 +232,6 @@ export const useArticleForm = ({ fetchArticles, pagination }) => {
     closeForm,
     handleFormChange,
     handleFormSubmit,
-    fetchCategories, // Export this to call when needed
+    fetchCategories,
   };
 };
