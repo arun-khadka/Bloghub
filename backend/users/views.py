@@ -31,7 +31,10 @@ def get_tokens_for_user(user):
     }
 
 
-# User Login View
+
+# --------------------------------
+# USER LOGIN VIEW
+# --------------------------------
 class LoginView(APIView):
     permission_classes = [AllowAny]
 
@@ -49,7 +52,10 @@ class LoginView(APIView):
         return success_response(data, "Login successful", status.HTTP_200_OK)
 
 
-# Admin Login View - Only allows admin users
+
+# --------------------------------
+# ADMIN LOGIN VIEW
+# --------------------------------
 class AdminLoginView(APIView):
     permission_classes = [AllowAny]
 
@@ -67,7 +73,10 @@ class AdminLoginView(APIView):
         return success_response(data, "Admin login successful", status.HTTP_200_OK)
 
 
-# User Registration View
+
+# --------------------------------
+# USER REGISTRATION VIEW
+# --------------------------------
 class RegisterView(APIView):
     permission_classes = [AllowAny]
 
@@ -83,7 +92,10 @@ class RegisterView(APIView):
         )
 
 
-# User Profile View
+
+# --------------------------------
+# USER PROFILE VIEW
+# --------------------------------
 class ProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -101,7 +113,10 @@ class ProfileView(APIView):
         return success_response(serializer.data, "Profile updated successfully")
 
 
-# User list view for admin panel
+
+# --------------------------------
+# USER LIST VIEW
+# --------------------------------
 class UserListView(APIView):
     # permission_classes = [permissions.IsAdminUser]
 
@@ -180,7 +195,9 @@ class UserListView(APIView):
             )
 
 
-# Admin User Update View
+# --------------------------------
+# ADMIN USER UPDATE VIEW
+# --------------------------------
 class AdminUserUpdateView(APIView):
     # permission_classes = [permissions.IsAdminUser]
 
@@ -227,7 +244,9 @@ class AdminUserUpdateView(APIView):
             )
             
 
-# Admin User Delete View
+# --------------------------------
+# ADMIN USER DELETE VIEW
+# --------------------------------
 class AdminUserDeleteView(APIView):
     permission_classes = [permissions.IsAdminUser]
 
@@ -255,7 +274,9 @@ class AdminUserDeleteView(APIView):
             )
 
 
-# Admin Dashboard Stats View
+# --------------------------------
+# ADMIN DASHBOARD VIEW
+# --------------------------------
 class AdminDashboardView(APIView):
     # permission_classes = [permissions.IsAdminUser]
 

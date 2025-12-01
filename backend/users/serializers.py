@@ -4,7 +4,9 @@ from .models import User
 from blog.models import Article 
 from authors.models import Author
 
-
+# --------------------------------
+# REGISTER SERIALIZER
+# --------------------------------
 class RegisterSerializer(serializers.ModelSerializer):
     confirm_password = serializers.CharField(write_only=True, required=True)
 
@@ -23,6 +25,10 @@ class RegisterSerializer(serializers.ModelSerializer):
         return User.objects.create_user(**validated_data)
 
 
+    
+# --------------------------------
+# LOGIN SERIALIZER
+# --------------------------------
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
@@ -37,6 +43,9 @@ class LoginSerializer(serializers.Serializer):
         return data
 
 
+# --------------------------------
+# USER PROFILE SERIALIZER
+# --------------------------------
 class UserProfileSerializer(serializers.ModelSerializer):
     is_author = serializers.SerializerMethodField()
     role = serializers.SerializerMethodField()
@@ -81,7 +90,9 @@ class UserProfileSerializer(serializers.ModelSerializer):
         return {}  # or None
 
 
-# User list serializer
+# --------------------------------
+# USER LIST SERIALIZER
+# --------------------------------
 class UserListSerializer(serializers.ModelSerializer):
     role = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
@@ -130,7 +141,10 @@ class UserListSerializer(serializers.ModelSerializer):
         return obj.is_author
 
 
-#Admin login serializer
+
+# --------------------------------
+# ADMIN LOGIN SERIALIZER
+# --------------------------------
 class AdminLoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
@@ -147,7 +161,10 @@ class AdminLoginSerializer(serializers.Serializer):
         return data
 
 
-# Admin user update serializer
+
+# --------------------------------
+# ADMIN USER UPDATE SERIALIZER
+# --------------------------------
 class AdminUserUpdateSerializer(serializers.ModelSerializer):
     role = serializers.CharField(required=False, allow_blank=True)
     status = serializers.CharField(required=False, allow_blank=True)

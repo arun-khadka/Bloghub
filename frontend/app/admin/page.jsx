@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import {
   Card,
   CardHeader,
@@ -708,48 +708,6 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Quick actions */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle className="text-base">Quick Actions</CardTitle>
-              <CardDescription>
-                Common actions to manage your platform efficiently.
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 md:grid-cols-4">
-            <Button variant="outline" className="justify-start" asChild>
-              <a href="/admin/articles?create=new">
-                <FileText className="mr-2 h-4 w-4" />
-                Create article
-              </a>
-            </Button>
-            <Button variant="outline" className="justify-start" asChild>
-              <a href="/admin/users">
-                <Users className="mr-2 h-4 w-4" />
-                Manage users
-              </a>
-            </Button>
-            <Button variant="outline" className="justify-start" asChild>
-              <a href="/admin/articles">
-                <TrendingUp className="mr-2 h-4 w-4" />
-                View analytics
-              </a>
-            </Button>
-            <Button variant="outline" className="justify-start" asChild>
-              <a href="/admin/settings">
-                <Calendar className="mr-2 h-4 w-4" />
-                Settings
-              </a>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
