@@ -11,7 +11,8 @@ import {
   Leaf,
   Palette,
   Heart,
-  Loader,
+  Smartphone,
+  MapPin,
 } from "lucide-react";
 
 const iconMap = {
@@ -22,9 +23,13 @@ const iconMap = {
   trophy: Trophy,
   leaf: Leaf,
   palette: Palette,
-  arts: Palette, // Map 'arts' to Palette icon
-  heart: Heart, // Map 'heart' to Heart icon for Health category
-  technology: Cpu, // Map 'technology' to Cpu icon
+  arts: Palette, 
+  heart: Heart, 
+  technology: Cpu, 
+  sports: Trophy,
+  lifestyle: Leaf, 
+  mobile: Smartphone, 
+  travel: MapPin,
 };
 
 export default function CategoryNav({ activeCategory = "all" }) {
@@ -40,20 +45,42 @@ export default function CategoryNav({ activeCategory = "all" }) {
     try {
       setLoading(true);
       setError("");
-
-      const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/category/list/`
-      );
-
-      if (response.data.success) {
-        setCategories(response.data.data || []);
-      } else {
-        throw new Error(response.data.message || "Failed to fetch categories");
+  
+      let allCategories = [];
+      let nextUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/category/list/`;
+  
+      // Fetch all pages
+      while (nextUrl) {
+        const response = await axios.get(nextUrl);
+        
+        if (response.data.results && response.data.results.success) {
+          allCategories = [...allCategories, ...(response.data.results.data || [])];
+          nextUrl = response.data.next; // Get next page URL
+        } else {
+          console.warn("API returned non-success:", response.data.results?.message);
+          setError(response.data.results?.message || "Failed to fetch categories");
+          setCategories(getFallbackCategories());
+          return;
+        }
       }
+  
+      setCategories(allCategories);
     } catch (err) {
       console.error("Error fetching categories:", err);
-      setError(err.response?.data?.message || err.message || "Failed to fetch categories");
-      // Fallback to hardcoded categories if API fails
+      
+      let errorMessage = "Failed to fetch categories";
+      
+      if (axios.isAxiosError(err)) {
+        errorMessage = err.response?.data?.results?.message || 
+                       err.response?.data?.message || 
+                       err.response?.data?.detail || 
+                       err.message || 
+                       "Failed to fetch categories";
+      } else if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
       setCategories(getFallbackCategories());
     } finally {
       setLoading(false);

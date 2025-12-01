@@ -10,13 +10,13 @@ export const useArticleForm = ({ fetchArticles, pagination }) => {
     author_name: "",
     status: "draft",
     content: "",
-    category: "", // This should be category name, not ID
-    category_name: "", // For display only
+    category: "", 
+    category_name: "", 
   });
   const [formError, setFormError] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [categories, setCategories] = useState([]); // Add state for categories
+  const [categories, setCategories] = useState([]);
 
 
   // Open form for editing existing article
@@ -38,7 +38,7 @@ export const useArticleForm = ({ fetchArticles, pagination }) => {
   const fetchCategories = async () => {
     try {
       const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/categories/` // Adjust this endpoint
+        `${process.env.NEXT_PUBLIC_API_URL}/api/category/dropdown/` // Adjust this endpoint
       );
       setCategories(response.data.results || response.data || []);
     } catch (err) {

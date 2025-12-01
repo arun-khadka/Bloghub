@@ -182,8 +182,8 @@ export default function ArticleFormModal({
                 </Label>
                 <Input
                   id="category"
-                  value={formData.category}
-                  onChange={(e) => onFormChange("category", e.target.value)}
+                  value={formData.category_name}
+                  onChange={(e) => onFormChange("category_name", e.target.value)}
                   placeholder="Enter category (e.g., Technology, Business)"
                   disabled={isLoading}
                   className="w-full focus:ring-2 focus:ring-blue-500"
