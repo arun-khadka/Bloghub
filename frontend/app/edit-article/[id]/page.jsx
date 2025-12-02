@@ -139,19 +139,11 @@ export default function EditArticlePage() {
   const fetchCategories = async () => {
     try {
       const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/category/list/`,
-        {
-          timeout: 5000,
-        }
+        `${process.env.NEXT_PUBLIC_API_URL}/api/category/dropdown/`  
       );
-
       if (response.data.success && Array.isArray(response.data.data)) {
         setCategories(response.data.data);
       } else {
-        console.error(
-          "Unexpected categories response structure:",
-          response.data
-        );
         setCategories([]);
       }
     } catch (err) {

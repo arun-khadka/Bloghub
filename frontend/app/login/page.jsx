@@ -162,7 +162,9 @@ export default function LoginPage() {
       setError(errorMessage);
 
       // Show error toast
-      toast.error(errorMessage);
+      toast.error(errorMessage, {
+        position: "top-center"
+      });
     } finally {
       setLoading(false);
     }
@@ -211,7 +213,7 @@ export default function LoginPage() {
         <div className="bg-card border border-border rounded-2xl shadow-lg p-8">
           <form onSubmit={handleSubmit} noValidate className="space-y-6">
             {error && (
-              <div className="bg-destructive/10 justify-center border border-destructive/20 text-destructive px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+              <div className="bg-destructive/10 items-center border border-destructive/20 text-destructive px-4 py-3 rounded-lg text-sm flex gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{error}</span>
               </div>

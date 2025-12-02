@@ -1,7 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react"; 
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
+
 
 // Import components
 import DeleteConfirmationModal from "./components/DeleteConfirmationModal";
@@ -21,7 +29,7 @@ export default function AdminArticlesPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("date_desc");
-  
+
   // Use custom hooks
   const {
     articles,
@@ -33,38 +41,51 @@ export default function AdminArticlesPage() {
     filteredArticles,
     handleSortChange,
     handlePageChange,
-    clearError
+    clearError,
   } = useArticles({ search, statusFilter, sortBy });
 
-  const {
-    deleteModal,
-    openDeleteModal,
-    closeDeleteModal,
-    confirmDelete
-  } = useDeleteModal({ fetchArticles, pagination });
+  const { user } = useAuth(); 
+
+  const { deleteModal, openDeleteModal, closeDeleteModal, confirmDelete } =
+    useDeleteModal({ fetchArticles, pagination });
 
   const {
     isFormOpen,
     editingArticle,
     formData,
     formError,
-    isCreating,
-    isUpdating,
-    openCreateForm,
+    isSubmitting, 
+    categories,
     openEditForm,
     closeForm,
     handleFormChange,
     handleFormSubmit,
-    categories,
-    fetchCategories 
-  } = useArticleForm({ fetchArticles, pagination });
+    fetchCategories,
+  } = useArticleForm({
+    fetchArticles,
+    pagination: {
+      current: pagination.current,
+      total: pagination.total,
+      per_page: pagination.per_page,
+    },
+  });
 
-  // Fetch categories when form opens 
+  // Fetch articles on initial load
+  useEffect(() => {
+    fetchArticles(1);
+  }, []);
+
+  // Fetch categories when form opens
   useEffect(() => {
     if (isFormOpen) {
       fetchCategories();
     }
   }, [isFormOpen, fetchCategories]);
+
+  // Handle refresh
+  const handleRefresh = () => {
+    fetchArticles(pagination.current);
+  };
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
@@ -86,8 +107,14 @@ export default function AdminArticlesPage() {
         onFormChange={handleFormChange}
         editingArticle={editingArticle}
         error={formError}
-        isLoading={isCreating || isUpdating}
-        categories={categories} 
+        isLoading={isSubmitting}
+        categories={categories}
+        currentUser={{
+          id: user?.id || "admin",
+          fullname: user?.fullname || "Admin User",
+          avatar: user?.avatar || "",
+          is_author: user?.is_author || true,
+        }}
       />
 
       {/* Header */}
@@ -97,10 +124,7 @@ export default function AdminArticlesPage() {
       />
 
       {/* Stats Cards */}
-      <StatsCards 
-        stats={stats} 
-        loading={loading} 
-      />
+      <StatsCards stats={stats} loading={loading} />
 
       {/* Main Content Card */}
       <Card>
@@ -118,7 +142,7 @@ export default function AdminArticlesPage() {
                   handleSortChange(newSort);
                 }}
                 onStatusFilterChange={setStatusFilter}
-                onRefresh={() => fetchArticles(pagination.current)}
+                onRefresh={handleRefresh}
               />
             }
           />
@@ -149,17 +173,17 @@ export default function AdminArticlesPage() {
             error={error}
             onEdit={openEditForm}
             onDelete={openDeleteModal}
-            onCreate={openCreateForm}
             totalArticles={articles.length}
           />
 
           {/* Pagination */}
-          <EnhancedPagination
-            pagination={pagination}
-            onPageChange={handlePageChange}
-            loading={loading}
-            show={!loading && !error && filteredArticles.length > 0}
-          />
+          {!loading && !error && filteredArticles.length > 0 && (
+            <EnhancedPagination
+              pagination={pagination}
+              onPageChange={handlePageChange}
+              loading={loading}
+            />
+          )}
         </CardContent>
       </Card>
     </div>

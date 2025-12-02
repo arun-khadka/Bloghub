@@ -29,7 +29,7 @@ urlpatterns = [
         name="articles-by-author",
     ),
     # Article operations by ID
-    path("retrieve/<int:id>/", ArticleRetrieveView.as_view(), name="article-retrieve"),
+    path("retrieve/<int:article_id>/", ArticleRetrieveView.as_view(), name="article-retrieve"),
     path(
         "<int:article_id>/increment-views/",
         IncrementArticleViews.as_view(),

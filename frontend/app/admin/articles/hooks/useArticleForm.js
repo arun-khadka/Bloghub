@@ -7,57 +7,113 @@ export const useArticleForm = ({ fetchArticles, pagination }) => {
   const [editingArticle, setEditingArticle] = useState(null);
   const [formData, setFormData] = useState({
     title: "",
-    author_name: "",
-    status: "draft",
+    excerpt: "",  
     content: "",
-    category: "", 
-    category_name: "", 
+    category: "",
+    is_published: true,  
   });
   const [formError, setFormError] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false); 
   const [categories, setCategories] = useState([]);
 
-
-  // Open form for editing existing article
-  const openEditForm = (article) => {
-    setEditingArticle(article);
-    setFormData({
-      title: article.title || "",
-      author_name: article.author_name || "",
-      status: article.is_published ? "published" : "draft",
-      content: article.content || "",
-      category: article.category || "", // Send category ID, not name
-      category_name: article.category_name || "", // Keep name for display
-    });
-    setIsFormOpen(true);
-    setFormError("");
-  };
-
-  // Fetch categories (call this when opening form)
-  const fetchCategories = async () => {
+  const fetchArticleDetails = async (articleId) => {
     try {
+      const token = localStorage.getItem("accessToken");
       const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/category/dropdown/` 
+        `${process.env.NEXT_PUBLIC_API_URL}/api/blog/retrieve/${articleId}/`,  
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        }
       );
-      setCategories(response.data.results || response.data || []);
+      
+      if (response.data.success) {
+        console.log("Full article data with author:", response.data.data);
+        return response.data.data;
+      }
+      return null;
     } catch (err) {
-      console.error("Error fetching categories:", err);
+      console.error("Error fetching article details:", err);
+      return null;
     }
   };
 
-  // Find category ID by name
-  const findCategoryIdByName = (categoryName) => {
-    const category = categories.find(cat => 
-      cat.name?.toLowerCase() === categoryName?.toLowerCase()
-    );
-    return category?.id || null;
+  // Open form for editing existing article
+  const openEditForm = async (article) => {
+    console.log("Original article data:", article);
+    
+    try {
+      // Fetch complete article with author details
+      const fullArticle = await fetchArticleDetails(article.id);
+      
+      if (fullArticle) {
+        console.log("Article with author name:", fullArticle.author_name);
+        console.log("Article author object:", fullArticle.author);
+        
+        setEditingArticle(fullArticle);
+        setFormData({
+          title: fullArticle.title || "",
+          excerpt: fullArticle.excerpt || "",
+          content: fullArticle.content || "",
+          category: fullArticle.category || fullArticle.category?.id || "",
+          is_published: fullArticle.is_published || false,
+        });
+      } else {
+        // Fallback to original article data
+        setEditingArticle(article);
+        setFormData({
+          title: article.title || "",
+          excerpt: article.excerpt || "",
+          content: article.content || "",
+          category: article.category || article.category?.id || "",
+          is_published: article.is_published || false,
+        });
+      }
+      
+      setIsFormOpen(true);
+      setFormError("");
+      fetchCategories();
+    } catch (err) {
+      console.error("Error in openEditForm:", err);
+      // Fallback
+      setEditingArticle(article);
+      setFormData({
+        title: article.title || "",
+        excerpt: article.excerpt || "",
+        content: article.content || "",
+        category: article.category || article.category?.id || "",
+        is_published: article.is_published || false,
+      });
+      setIsFormOpen(true);
+      setFormError("");
+      fetchCategories();
+    }
   };
 
-  // Find category name by ID
-  const findCategoryNameById = (categoryId) => {
-    const category = categories.find(cat => cat.id === categoryId);
-    return category?.name || "";
+  // Fetch categories
+  const fetchCategories = async () => {
+    try {
+      const response = await axios.get(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/category/dropdown/`  
+      );
+      console.log("Categories response:", response.data);
+      
+      // Handle different response formats
+      if (response.data.success && Array.isArray(response.data.data)) {
+        setCategories(response.data.data);
+      } else if (Array.isArray(response.data.results)) {
+        // Handle DRF pagination format
+        setCategories(response.data.results);
+      } else if (Array.isArray(response.data)) {
+        // Handle direct array
+        setCategories(response.data);
+      } else {
+        console.error("Unexpected categories response structure:", response.data);
+        setCategories([]);
+      }
+    } catch (err) {
+      console.error("Error fetching categories:", err);
+      setCategories([]);
+    }
   };
 
   // Close form modal
@@ -71,11 +127,10 @@ export const useArticleForm = ({ fetchArticles, pagination }) => {
   const resetForm = () => {
     setFormData({
       title: "",
-      author_name: "",
-      status: "draft",
+      excerpt: "",
       content: "",
       category: "",
-      category_name: "",
+      is_published: true,
     });
     setEditingArticle(null);
     setFormError("");
@@ -87,151 +142,223 @@ export const useArticleForm = ({ fetchArticles, pagination }) => {
       ...prev,
       [field]: value
     }));
-    // Clear error when user st arts typing
+    // Clear error when user starts typing
     if (formError) setFormError("");
   };
 
-  // Handle form submission 
-  const handleFormSubmit = async (data) => {
-    // Validation
-    if (!data.title.trim()) {
-      setFormError("Article title is required");
-      return;
+  // Validate form data
+  const validateForm = (data) => {
+    const errors = {};
+    
+    if (!data.title?.trim()) {
+      errors.title = "Article title is required";
+    } else if (data.title.length < 5) {
+      errors.title = "Title must be at least 5 characters long";
+    } else if (data.title.length > 200) {
+      errors.title = "Title must be less than 200 characters";
     }
 
-    if (!data.content.trim()) {
-      setFormError("Article content is required");
+    if (!data.excerpt?.trim()) {
+      errors.excerpt = "Excerpt is required";
+    } else if (data.excerpt.length > 300) {
+      errors.excerpt = "Excerpt must be less than 300 characters";
+    } else if (data.excerpt.length < 50) {
+      errors.excerpt = "Excerpt must be at least 50 characters long";
+    }
+
+    if (!data.content?.trim()) {
+      errors.content = "Article content is required";
+    } else if (data.content.length < 100) {
+      errors.content = "Content must be at least 100 characters long";
+    }
+
+    if (!data.category) {
+      errors.category = "Category is required";
+    }
+
+    return errors;
+  };
+
+  // Validate image file
+  const validateImageFile = (imageFile) => {
+    if (!imageFile) return null;
+    
+    const validTypes = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+    ];
+    
+    if (!validTypes.includes(imageFile.type)) {
+      return "Please select a valid image file (JPEG, PNG, GIF, WebP)";
+    }
+
+    if (imageFile.size > 5 * 1024 * 1024) {
+      return "Image size must be less than 5MB";
+    }
+
+    return null;
+  };
+
+  // Handle form submission 
+  const handleFormSubmit = async (data, imageFile = null, imageOptions = {}) => {
+    console.log("Form submit called with:", { data, imageFile, imageOptions });
+    
+    // Validate form data
+    const errors = validateForm(data);
+    
+    // Validate image file if provided
+    if (imageFile) {
+      const imageError = validateImageFile(imageFile);
+      if (imageError) {
+        errors.image = imageError;
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFormError(Object.values(errors)[0]);
+      toast.error("Please fix the form errors");
       return;
     }
 
     try {
-      // Prepare payload according to backend expectations
-      const payload = {
-        title: data.title.trim(),
-        content: data.content.trim(),
-        is_published: data.status === "published",
-      };
+      setIsSubmitting(true);
 
-      // Add author_name if provided
-      if (data.author_name.trim()) {
-        payload.author_name = data.author_name.trim();
-      }
+      // Prepare FormData for multipart/form-data
+      const formDataToSend = new FormData();
+      
+      // Append basic fields
+      formDataToSend.append("title", data.title.trim());
+      formDataToSend.append("excerpt", data.excerpt.trim());
+      formDataToSend.append("content", data.content.trim());
+      formDataToSend.append("category", data.category);
+      formDataToSend.append("is_published", data.is_published.toString());
 
-      // Handle category properly
-      if (data.category) {
-        // If category is a string (name), we need to convert it to ID
-        // OR if it's already an ID, use it directly
-        if (isNaN(data.category)) {
-          // It's a category name, find ID
-          const categoryId = findCategoryIdByName(data.category);
-          if (categoryId) {
-            payload.category = categoryId;
-          } else {
-            // Category name not found - create new category or send as string?
-            // For now, let's send the string and let backend handle it
-            payload.category = data.category.trim();
-          }
-        } else {
-          // It's already an ID
-          payload.category = parseInt(data.category);
-        }
+      // Handle image file - THREE CASES:
+      console.log("Image handling details:", {
+        imageFile: !!imageFile,
+        shouldRemoveImage: imageOptions.shouldRemoveImage,
+        hasExistingImage: imageOptions.hasExistingImage
+      });
+      
+      if (imageFile) {
+        // CASE 1: New image uploaded (replaces existing or adds new)
+        console.log("Adding new image file to FormData");
+        formDataToSend.append("featured_image", imageFile);
+      } else if (imageOptions.shouldRemoveImage) {
+        // CASE 2: User wants to remove existing image
+        // For Django, we can send an empty file field or null
+        console.log("Removing existing image - sending empty file");
+        formDataToSend.append("featured_image", ""); // Empty string to clear the field
       }
+      // CASE 3: No imageFile and not removing image = keep existing image
+      // Don't send featured_image field at all
 
       const token = typeof window !== "undefined" 
         ? localStorage.getItem("accessToken") 
         : null;
 
       const headers = {
-        "Content-Type": "application/json",
+        "Content-Type": "multipart/form-data",  
       };
 
       if (token) {
         headers.Authorization = `Bearer ${token}`;
       }
 
+      let response;
+      let endpoint;
+      
       if (editingArticle) {
-        // Update existing article - FIXED URL
-        setIsUpdating(true);
-        console.log("Updating article with payload:", payload);
-        console.log("Article ID:", editingArticle.id);
+        // Update existing article
+        console.log("Updating article:", editingArticle.id);
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/api/blog/update/${editingArticle.id}/`;
         
-        const response = await axios.put(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/blog/update/${editingArticle.id}/`,
-          payload,
-          { headers }
-        );
-
-        console.log("Update response:", response.data);
-
-        if (response.data.success) {
-          toast.success("Article updated successfully!");
-          closeForm();
-          await fetchArticles(pagination.current);
-        } else {
-          setFormError(response.data.message || "Failed to update article.");
-        }
+        // For PUT vs PATCH: Use PUT for full update, but if your backend expects PATCH for partial updates
+        // You might need to check your backend requirements
+        response = await axios.put(endpoint, formDataToSend, { headers });
       } else {
         // Create new article
-        setIsCreating(true);
-        console.log("Creating article with payload:", payload);
+        console.log("Creating new article");
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/api/blog/create/`;
+        response = await axios.post(endpoint, formDataToSend, { headers });
+      }
+
+      console.log("API Response:", response.data);
+
+      if (response.data.success) {
+        const successMessage = editingArticle 
+          ? "Article updated successfully!" 
+          : "Article created successfully!";
         
-        const response = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/blog/create/`,
-          payload,
-          { headers }
-        );
-
-        console.log("Create response:", response.data);
-
-        if (response.data.success) {
-          toast.success("Article created successfully!");
-          closeForm();
-          await fetchArticles(1); // Go to first page to see new article
-        } else {
-          setFormError(response.data.message || "Failed to create article.");
-        }
+        toast.success(successMessage);
+        closeForm();
+        
+        // Refresh articles list
+        const pageToRefresh = editingArticle ? pagination.current : 1;
+        await fetchArticles(pageToRefresh);
+      } else {
+        const errorMessage = response.data.message || 
+          (editingArticle ? "Failed to update article." : "Failed to create article.");
+        setFormError(errorMessage);
+        toast.error(errorMessage);
       }
     } catch (err) {
       console.error("Error saving article:", err);
       console.error("Error response:", err.response?.data);
       
-      let errorMessage = "Failed to save article. Please try again.";
+      let errorMessage = editingArticle 
+        ? "Failed to update article. Please try again." 
+        : "Failed to create article. Please try again.";
       
-      if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
-      } else if (err.response?.data?.detail) {
-        errorMessage = err.response.data.detail;
-      } else if (err.response?.data) {
-        // Handle validation errors
-        const errors = err.response.data;
-        if (typeof errors === 'object') {
+      if (err.response?.data) {
+        // Handle different error formats
+        if (err.response.data.message) {
+          errorMessage = err.response.data.message;
+        } else if (err.response.data.detail) {
+          errorMessage = err.response.data.detail;
+        } else if (err.response.data.errors) {
+          // Handle validation errors
+          const errors = err.response.data.errors;
           errorMessage = Object.entries(errors)
             .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
             .join('; ');
+        } else if (typeof err.response.data === 'string') {
+          errorMessage = err.response.data;
+        } else if (err.response.data.featured_image) {
+          // Handle image-specific errors
+          errorMessage = `Image error: ${Array.isArray(err.response.data.featured_image) 
+            ? err.response.data.featured_image.join(', ') 
+            : err.response.data.featured_image}`;
         }
+      } else if (err.message) {
+        errorMessage = err.message;
       }
       
       setFormError(errorMessage);
       toast.error(errorMessage);
     } finally {
-      setIsCreating(false);
-      setIsUpdating(false);
+      setIsSubmitting(false);
     }
   };
 
   return {
+    // State
     isFormOpen,
     editingArticle,
     formData,
     formError,
-    isCreating,
-    isUpdating,
+    isSubmitting,
     categories,
- 
+    
+    // Actions
     openEditForm,
     closeForm,
     handleFormChange,
     handleFormSubmit,
     fetchCategories,
+    resetForm,
   };
 };

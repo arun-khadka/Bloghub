@@ -5,7 +5,6 @@ import axios from "axios";
 import { useAuth } from "@/contexts/AuthContext";
 import SuccessModal from "@/components/SuccessModal";
 import { Save, X, AlertCircle, Trash2 } from "lucide-react";
-import Toast from "@/components/Toast";
 import { useRouter } from "next/navigation";
 
 export default function AuthorProfileForm({ onSuccess }) {
@@ -29,46 +28,13 @@ export default function AuthorProfileForm({ onSuccess }) {
     },
   });
 
-  // Helper function to get valid token with refresh logic
-  const getValidToken = async () => {
-    try {
-      let accessToken = localStorage.getItem("accessToken");
-      const refreshToken = localStorage.getItem("refreshToken");
-
-      if (!accessToken) {
-        throw new Error("No access token found");
-      }
-
-      // Simple token validation - you might want to decode and check expiry
-      // For now, we'll try to use it and refresh if it fails
-      return { accessToken, refreshToken };
-    } catch (error) {
-      console.error("Token validation error:", error);
-      throw error;
-    }
+  // Helper function to get auth header
+  const getAuthHeader = () => {
+    const token = localStorage.getItem("accessToken");
+    return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
-  // Helper function to refresh token
-  const refreshAccessToken = async (refreshToken) => {
-    try {
-      const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/token/refresh/`,
-        { refresh: refreshToken }
-      );
-      
-      const newAccessToken = response.data.access;
-      localStorage.setItem("accessToken", newAccessToken);
-      return newAccessToken;
-    } catch (error) {
-      console.error("Token refresh failed:", error);
-      // Clear invalid tokens
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("refreshToken");
-      throw new Error("Session expired. Please login again.");
-    }
-  };
-
-  // Fetch existing author profile - FIXED WITH PROPER ERROR HANDLING
+  // Fetch existing author profile
   const fetchAuthorProfile = async () => {
     if (!user?.id) {
       console.log("No user ID available");
@@ -79,43 +45,23 @@ export default function AuthorProfileForm({ onSuccess }) {
     try {
       setLoadingProfile(true);
       
-      let { accessToken, refreshToken } = await getValidToken();
-      let retryWithRefresh = false;
-
       console.log("Fetching author profile for user:", user.id);
 
-      const makeRequest = async (token) => {
-        return await axios.get(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/authors/${user.id}/`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            timeout: 10000,
-          }
-        );
-      };
-
-      let response;
-      try {
-        response = await makeRequest(accessToken);
-      } catch (err) {
-        if (err.response?.status === 401 && refreshToken && !retryWithRefresh) {
-          console.log("Token expired, attempting refresh...");
-          retryWithRefresh = true;
-          accessToken = await refreshAccessToken(refreshToken);
-          response = await makeRequest(accessToken);
-        } else {
-          throw err;
+      const response = await axios.get(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/authors/${user.id}/`,
+        {
+          headers: {
+            ...getAuthHeader(),
+            "Content-Type": "application/json",
+          },
+          timeout: 10000,
         }
-      }
+      );
 
       console.log("API Response:", response.data);
 
       if (response.data && response.data.success && response.data.data) {
         const authorData = response.data.data;
-
         setAuthorProfile(authorData);
         setFormData({
           bio: authorData.bio || "",
@@ -129,26 +75,30 @@ export default function AuthorProfileForm({ onSuccess }) {
         console.log("Author profile loaded:", authorData);
         return authorData;
       } else {
-        console.log("No author profile found in response");
+        console.log("No author profile found");
         setAuthorProfile(null);
         return null;
       }
     } catch (err) {
       console.error("Failed to fetch author profile:", err);
 
+      // Handle different error scenarios
       if (err.response?.status === 404) {
-        console.log("Author profile not found (404) - User is not an author yet");
+        // User doesn't have an author profile yet
+        console.log("User doesn't have an author profile yet");
         setAuthorProfile(null);
+        return null;
       } else if (err.response?.status === 401) {
-        console.log("Authentication failed - redirect to login");
+        // Authentication error
         setError("Your session has expired. Please log in again.");
-        // Optionally redirect to login page
+        // Optional: redirect to login
         // router.push("/login");
       } else {
+        // Other errors
         console.error("API Error:", err);
         setError("Failed to load author profile. Please try again.");
-        setAuthorProfile(null);
       }
+      setAuthorProfile(null);
       return null;
     } finally {
       setLoadingProfile(false);
@@ -157,8 +107,6 @@ export default function AuthorProfileForm({ onSuccess }) {
 
   // Fetch author profile when component mounts
   useEffect(() => {
-    console.log("useEffect triggered - User:", user);
-
     const loadAuthorProfile = async () => {
       if (user?.id) {
         console.log("Loading author profile for user:", user.id);
@@ -178,13 +126,6 @@ export default function AuthorProfileForm({ onSuccess }) {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSocialChange = (platform, value) => {
-    setFormData((prev) => ({
-      ...prev,
-      social_links: { ...prev.social_links, [platform]: value },
-    }));
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -192,117 +133,104 @@ export default function AuthorProfileForm({ onSuccess }) {
     setIsLoading(true);
 
     try {
-      let { accessToken, refreshToken } = await getValidToken();
-
       const config = {
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
+          ...getAuthHeader(),
         },
       };
 
       let url, method;
 
       if (authorProfile) {
-        url = `${process.env.NEXT_PUBLIC_API_URL}/api/authors/${user.id}/`;
+        // Update existing profile
+        url = `${process.env.NEXT_PUBLIC_API_URL}/api/authors/update/${authorProfile.id}/`;
         method = "PUT";
       } else {
+        // Create new profile
         url = `${process.env.NEXT_PUBLIC_API_URL}/api/authors/create/`;
         method = "POST";
       }
 
       console.log("Making API request:", { url, method, formData });
 
-      const makeRequest = async (token) => {
-        return await axios({
-          method,
-          url,
-          data: formData,
-          headers: {
-            ...config.headers,
-            Authorization: `Bearer ${token}`,
-          },
-        });
-      };
+      const response = await axios({
+        method,
+        url,
+        data: formData,
+        ...config,
+      });
 
-      let res;
-      try {
-        res = await makeRequest(accessToken);
-      } catch (error) {
-        if (error.response?.status === 401 && refreshToken) {
-          accessToken = await refreshAccessToken(refreshToken);
-          res = await makeRequest(accessToken);
-        } else {
-          throw error;
-        }
-      }
+      console.log("Author profile saved successfully:", response.data);
 
-      // SUCCESS - Extract author data from your API response structure
-      console.log("Author profile saved successfully:", res.data);
-
-      let authorData;
-      if (res.data.author) {
-        authorData = res.data.author;
-      } else if (res.data.data) {
-        authorData = res.data.data;
-      } else {
-        authorData = res.data;
-      }
-
-      // Update user's isAuthor status using the response data
-      if (!authorProfile) {
+      if (response.data.success) {
+        const authorData = response.data.data || response.data.author;
+        
+        // Update user's isAuthor status
         try {
-          console.log("Updating user profile with isAuthor: true");
-          await updateProfile({ isAuthor: true });
+          console.log("Updating user profile with isAuthor:", !!authorData);
+          await updateProfile({ is_author: !!authorData });
           console.log("User profile updated successfully");
         } catch (updateError) {
           console.error("Failed to update user profile:", updateError);
         }
+
+        // Update local state
+        setAuthorProfile(authorData);
+        console.log("Author profile state updated:", authorData);
+
+        // Set success message with auto-clear timer
+        const successMsg = authorProfile
+          ? "Author profile updated successfully!"
+          : "Author profile created successfully!";
+        setSuccess(successMsg);
+
+        // Clear success message after 5 seconds
+        setTimeout(() => {
+          setSuccess("");
+        }, 5000);
+
+        // Show modal for new authors
+        if (!authorProfile) {
+          setShowSuccessModal(true);
+        }
+
+        // Call onSuccess callback
+        console.log("Calling onSuccess with:", authorData);
+        onSuccess && onSuccess(authorData);
+
+        // Exit edit mode
+        setIsEditing(false);
+      } else {
+        throw new Error(response.data.message || "Failed to save author profile");
       }
-
-      // Update local state with the author data
-      setAuthorProfile(authorData);
-      console.log("Author profile state updated:", authorData);
-
-      // Set success message
-      const successMsg = authorProfile
-        ? "Author profile updated successfully!"
-        : "Author profile created successfully!";
-      setSuccess(successMsg);
-
-      // Show modal for new authors
-      if (!authorProfile) {
-        setShowSuccessModal(true);
-      }
-
-      // Call onSuccess callback with the author data
-      console.log("Calling onSuccess with:", authorData);
-      onSuccess && onSuccess(authorData);
-
-      // Exit edit mode
-      setIsEditing(false);
     } catch (err) {
       console.error("Author profile error:", err);
 
       let errorMessage = "Failed to save author profile";
 
       if (err.response?.data) {
-        if (err.response.data.detail) {
-          errorMessage = err.response.data.detail;
-        } else if (err.response.data.message) {
+        if (err.response.data.message) {
           errorMessage = err.response.data.message;
         } else if (err.response.data.error) {
           errorMessage = err.response.data.error;
-        } else if (typeof err.response.data === "string") {
-          errorMessage = err.response.data;
+        } else if (err.response.data.detail) {
+          errorMessage = err.response.data.detail;
         } else if (err.response.data.non_field_errors) {
           errorMessage = err.response.data.non_field_errors[0];
+        } else if (typeof err.response.data === "string") {
+          errorMessage = err.response.data;
         }
       } else if (err.message) {
         errorMessage = err.message;
       }
 
       setError(errorMessage);
+      
+      // Also clear error message after 5 seconds
+      setTimeout(() => {
+        setError("");
+      }, 5000);
     } finally {
       setIsLoading(false);
     }
@@ -322,58 +250,45 @@ export default function AuthorProfileForm({ onSuccess }) {
     setError("");
 
     try {
-      let { accessToken, refreshToken } = await getValidToken();
-
-      const makeRequest = async (token) => {
-        return await axios.delete(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/authors/${user.id}/`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-      };
-
-      try {
-        await makeRequest(accessToken);
-      } catch (error) {
-        if (error.response?.status === 401 && refreshToken) {
-          accessToken = await refreshAccessToken(refreshToken);
-          await makeRequest(accessToken);
-        } else {
-          throw error;
+      const response = await axios.delete(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/authors/delete/${authorProfile.id}/`,
+        {
+          headers: getAuthHeader(),
         }
+      );
+
+      if (response.data.success) {
+        // Successfully deleted
+        setAuthorProfile(null);
+        setFormData({
+          bio: "",
+          social_links: {
+            twitter: "",
+            facebook: "",
+            instagram: "",
+            linkedin: "",
+          },
+        });
+
+        // Update user's isAuthor status
+        try {
+          await updateProfile({ is_author: false });
+        } catch (updateError) {
+          console.error("Failed to update user profile:", updateError);
+        }
+
+        setSuccess("Author profile deleted successfully!");
+        setIsEditing(false);
+        onSuccess && onSuccess(null);
+      } else {
+        throw new Error(response.data.message || "Failed to delete author profile");
       }
-
-      // Successfully deleted
-      setAuthorProfile(null);
-      setFormData({
-        bio: "",
-        social_links: {
-          twitter: "",
-          facebook: "",
-          instagram: "",
-          linkedin: "",
-        },
-      });
-
-      // Update user's isAuthor status
-      try {
-        await updateProfile({ isAuthor: false });
-      } catch (updateError) {
-        console.error("Failed to update user profile:", updateError);
-      }
-
-      setSuccess("Author profile deleted successfully!");
-      setIsEditing(false);
-      onSuccess && onSuccess(null);
     } catch (err) {
       console.error("Failed to delete author profile:", err);
       setError(
-        err.response?.data?.detail ||
-          err.response?.data?.message ||
-          "Failed to delete author profile"
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        "Failed to delete author profile"
       );
     } finally {
       setIsDeleting(false);
@@ -382,6 +297,7 @@ export default function AuthorProfileForm({ onSuccess }) {
 
   const handleCancel = () => {
     if (authorProfile) {
+      // Reset to current profile data
       setFormData({
         bio: authorProfile.bio || "",
         social_links: {
@@ -392,6 +308,7 @@ export default function AuthorProfileForm({ onSuccess }) {
         },
       });
     } else {
+      // Reset to empty for new profile
       setFormData({
         bio: "",
         social_links: {
@@ -420,7 +337,7 @@ export default function AuthorProfileForm({ onSuccess }) {
 
   return (
     <>
-      <div className="bg-card rounded-2xl shadow-lg p-8 bg-linear-to-r from-primary/10 to-accent/10 border border-primary/20">
+      <div className="bg-card rounded-2xl shadow-lg p-8 bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-foreground">
             {authorProfile ? "Author Profile" : "Become an Author"}
@@ -430,7 +347,7 @@ export default function AuthorProfileForm({ onSuccess }) {
               <button
                 onClick={handleDeleteAuthorProfile}
                 disabled={isDeleting}
-                className="flex items-center outline outline-red-400 hover:outline-red-400 shadow-md hover:shadow-red-300 gap-2 px-4 py-2 bg-destructive/10 text-destructive rounded-lg transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 bg-destructive/10 text-destructive rounded-lg hover:bg-destructive/20 transition-colors disabled:opacity-50 border border-destructive/20"
               >
                 <Trash2 className="w-4 h-4" />
                 {isDeleting ? "Deleting..." : "Delete Profile"}
@@ -439,7 +356,7 @@ export default function AuthorProfileForm({ onSuccess }) {
             {!isEditing && authorProfile && (
               <button
                 onClick={() => setIsEditing(true)}
-                className="px-4 py-2 bg-accent outline outline-sky-300 shadow-md hover:shadow-blue-300 rounded-lg transition-colors"
+                className="px-4 py-2 bg-accent text-accent-foreground rounded-lg hover:bg-accent/80 transition-colors border border-accent/20"
               >
                 Edit Profile
               </button>
@@ -500,7 +417,7 @@ export default function AuthorProfileForm({ onSuccess }) {
                             href={url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="px-3 py-2 outline outline-blue-200 shadow hover:shadow-md hover:shadow-blue-300 bg-accent hover:bg-accent/80 text-foreground rounded-lg transition-colors capitalize text-sm"
+                            className="px-3 py-2 bg-accent hover:bg-accent/80 text-foreground rounded-lg transition-colors capitalize text-sm border border-accent/20"
                           >
                             {platform}
                           </a>
@@ -526,6 +443,7 @@ export default function AuthorProfileForm({ onSuccess }) {
                 rows={4}
                 placeholder="Tell your readers about yourself..."
                 className="w-full px-4 py-3 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                required
               />
             </div>
 
@@ -533,7 +451,7 @@ export default function AuthorProfileForm({ onSuccess }) {
               <label className="block text-sm font-medium text-foreground mb-4">
                 Social Links
               </label>
-              <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {Object.keys(formData.social_links).map((platform) => (
                   <div key={platform}>
                     <label className="block text-xs font-medium text-muted-foreground mb-1 capitalize">
@@ -569,7 +487,8 @@ export default function AuthorProfileForm({ onSuccess }) {
               <button
                 type="button"
                 onClick={handleCancel}
-                className="flex items-center gap-2 px-4 py-2 outline-1 outline-transparent hover:outline-red-400 shadow-md hover:shadow-red-300 hover:text-red-500 bg-accent text-foreground rounded-lg hover:bg-accent/80 transition-all duration-300 ease-in-out"
+                className="flex items-center gap-2 px-6 py-3 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors"
+                disabled={isLoading}
               >
                 <X className="w-4 h-4" />
                 Cancel
@@ -604,6 +523,12 @@ export default function AuthorProfileForm({ onSuccess }) {
                 Create your author profile to start publishing articles and
                 share your stories with the world.
               </p>
+              <button
+                onClick={() => setIsEditing(true)}
+                className="px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+              >
+                Create Author Profile
+              </button>
             </div>
           </div>
         )}

@@ -109,7 +109,7 @@ export default function AdminLoginPage() {
         "Unable to sign in. Please verify your admin credentials.";
       setAuthError(message);
       toast.error(message, {
-        position: "top-right"
+        position: "top-center"
       });
     } finally {
       setSubmitting(false);

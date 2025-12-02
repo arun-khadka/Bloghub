@@ -7,10 +7,7 @@ from .serializers import AuthorSerializer
 from users.serializers import UserProfileSerializer
 
 
-# -------------------------
-# AUTHOR LIST AND CREATE
-# -------------------------
-class AuthorListCreateView(APIView):
+class AuthorListView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def get(self, request):
@@ -19,41 +16,51 @@ class AuthorListCreateView(APIView):
         serializer = AuthorSerializer(authors, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    def post(self, request):
-        """Create a new author profile"""
-        user = request.user
-        if not user or user.is_anonymous:
-            return Response(
-                {"error": "Authentication required."},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
 
-        if Author.objects.filter(user=user).exists():
+class AuthorCreateView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+
+        if hasattr(user, "author_profile"):
             return Response(
                 {"error": "Author profile already exists."},
-                status=status.HTTP_400_BAD_REQUEST,
+                status=status.HTTP_400_BAD_REQUEST
             )
 
         serializer = AuthorSerializer(data=request.data)
-        if serializer.is_valid():
-            try:
-                serializer.save(user=user)
-                user.is_author = True
-                user.save()
 
-                return Response(
-                    {
-                        "message": "Author profile created successfully",
-                        "author": serializer.data,
-                        "user": UserProfileSerializer(user).data,
-                    },
-                    status=status.HTTP_201_CREATED,
-                )
-            except Exception as e:
-                return Response(
-                    {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        if serializer.is_valid():
+            author = serializer.save(
+                user=user,
+                bio=request.data.get("bio", "Hey! Please update your bio."),
+                social_links=request.data.get("social_links", {})
+            )
+
+            # Mark user as author
+            user.is_author = True
+            user.save()
+
+            return Response(
+                {
+                    "success": True,
+                    "message": "Author profile created successfully",
+                    "data": AuthorSerializer(author).data,
+                },
+                status=status.HTTP_201_CREATED
+            )
+
+        return Response(
+            {
+                "success": False,
+                "errors": serializer.errors,
+                "message": "Validation failed"
+            },
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+
 
 
 # -------------------------
@@ -62,19 +69,58 @@ class AuthorListCreateView(APIView):
 class AuthorRetrieveView(APIView):
     permission_classes = [permissions.AllowAny]
 
-    def get(self, request, author_id):
-        # Try to find by author ID first
+    def get(self, request, identifier):
+        """
+        Retrieve author by:
+        1. Author ID (primary key)
+        2. User ID
+        3. Username
+        """
         try:
-            author = Author.objects.get(id=author_id)
-        except Author.DoesNotExist:
-            # If not found by author ID, try by user ID
+            # Try to get by author ID first
+            author = Author.objects.get(id=identifier)
+        except (Author.DoesNotExist, ValueError):
             try:
-                author = Author.objects.get(user__id=author_id)
-            except Author.DoesNotExist:
-                return Response(
-                    {"error": "Author not found"}, 
-                    status=status.HTTP_404_NOT_FOUND
-                )
+                # Try by user ID
+                author = Author.objects.get(user__id=identifier)
+            except (Author.DoesNotExist, ValueError):
+                try:
+                    # Try by username
+                    author = Author.objects.get(user__username=identifier)
+                except Author.DoesNotExist:
+                    # Check if user exists but doesn't have author profile
+                    from django.contrib.auth import get_user_model
+                    User = get_user_model()
+                    try:
+                        user = User.objects.get(id=identifier)
+                        return Response(
+                            {
+                                "success": False,
+                                "message": "User exists but has no author profile",
+                                "data": None
+                            },
+                            status=status.HTTP_404_NOT_FOUND
+                        )
+                    except User.DoesNotExist:
+                        try:
+                            user = User.objects.get(username=identifier)
+                            return Response(
+                                {
+                                    "success": False,
+                                    "message": "User exists but has no author profile",
+                                    "data": None
+                                },
+                                status=status.HTTP_404_NOT_FOUND
+                            )
+                        except User.DoesNotExist:
+                            return Response(
+                                {
+                                    "success": False,
+                                    "message": "Author not found",
+                                    "data": None
+                                },
+                                status=status.HTTP_404_NOT_FOUND
+                            )
         
         serializer = AuthorSerializer(author)
         return Response(
@@ -82,68 +128,126 @@ class AuthorRetrieveView(APIView):
                 "success": True,
                 "data": serializer.data,
                 "message": "Author retrieved successfully",
-                "errors": {},
             },
             status=status.HTTP_200_OK,
         )
-
 
 # -------------------------
 # AUTHOR DETAIL BY PK
 # -------------------------
 class AuthorDetailView(APIView):
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-
-    def get_object(self, pk):
-        try:
-            return Author.objects.get(pk=pk)
-        except Author.DoesNotExist:
-            return None
+    permission_classes = [permissions.AllowAny]
 
     def get(self, request, pk):
-        author = self.get_object(pk)
-        if not author:
-            return Response(
-                {"error": "Author not found"}, status=status.HTTP_404_NOT_FOUND
-            )
+        try:
+            author = Author.objects.get(pk=pk)
+        except Author.DoesNotExist:
+            return Response({"error": "Author not found"}, status=status.HTTP_404_NOT_FOUND)
+
         serializer = AuthorSerializer(author)
-        return Response(serializer.data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+
+class AuthorUpdateView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
 
     def put(self, request, pk):
-        """Update author profile"""
-        author = self.get_object(pk)
-        if not author:
+        return self.update_author(request, pk, partial=False)
+
+    def patch(self, request, pk):
+        return self.update_author(request, pk, partial=True)
+
+    def update_author(self, request, pk, partial):
+        try:
+            author = Author.objects.get(pk=pk)
+        except Author.DoesNotExist:
             return Response(
-                {"error": "Author not found"}, status=status.HTTP_404_NOT_FOUND
+                {
+                    "success": False,
+                    "error": "Author not found",
+                    "message": "Author profile does not exist"
+                }, 
+                status=status.HTTP_404_NOT_FOUND
             )
 
-        # Only owner can edit their profile
-        if request.user != author.user:
+        # Only owner can update
+        if request.user != author.user and not request.user.is_staff:
             return Response(
-                {"error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN
+                {
+                    "success": False,
+                    "error": "Permission denied",
+                    "message": "You don't have permission to update this profile"
+                }, 
+                status=status.HTTP_403_FORBIDDEN
             )
 
-        serializer = AuthorSerializer(author, data=request.data, partial=True)
+        serializer = AuthorSerializer(author, data=request.data, partial=partial)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {
+                    "success": True,
+                    "data": serializer.data,
+                    "message": "Author profile updated successfully"
+                },
+                status=status.HTTP_200_OK
+            )
+
+        return Response(
+            {
+                "success": False,
+                "errors": serializer.errors,
+                "message": "Validation failed"
+            },
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+
+
+class AuthorDeleteView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
 
     def delete(self, request, pk):
-        """Delete author profile"""
-        author = self.get_object(pk)
-        if not author:
+        try:
+            # Try to get by author ID first
+            author = Author.objects.get(pk=pk)
+        except Author.DoesNotExist:
+            # Try to get by user ID
+            try:
+                author = Author.objects.get(user__id=pk)
+            except Author.DoesNotExist:
+                return Response(
+                    {
+                        "success": False,
+                        "error": "Author not found",
+                        "message": "Author profile does not exist"
+                    },
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+        # Only owner can delete
+        if request.user != author.user and not request.user.is_staff:
             return Response(
-                {"error": "Author not found"}, status=status.HTTP_404_NOT_FOUND
+                {
+                    "success": False,
+                    "error": "Permission denied",
+                    "message": "You don't have permission to delete this profile"
+                },
+                status=status.HTTP_403_FORBIDDEN
             )
 
-        if request.user != author.user:
-            return Response(
-                {"error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN
-            )
-
+        # Mark user as not an author
+        author.user.is_author = False
+        author.user.save()
+        
         author.delete()
+        
         return Response(
-            {"message": "Author deleted successfully"},
-            status=status.HTTP_204_NO_CONTENT,
+            {
+                "success": True,
+                "message": "Author profile deleted successfully",
+                "data": None
+            },
+            status=status.HTTP_200_OK
         )
