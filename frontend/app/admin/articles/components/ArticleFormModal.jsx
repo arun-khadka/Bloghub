@@ -277,18 +277,6 @@ export default function ArticleFormModal({
           </div>
         )}
 
-        {/* Form Errors */}
-        {/* {Object.keys(formErrors).length > 0 && (
-          <div className="mx-6 mt-4 flex items-center gap-3 p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
-            <AlertCircle className="w-5 h-5 text-destructive shrink-0" />
-            <div className="text-destructive text-sm">
-              {Object.values(formErrors).map((err, index) => (
-                <p key={index}>{err}</p>
-              ))}
-            </div>
-          </div>
-        )} */}
-
         {/* Scrollable Form Content */}
         <div
           className="form-content flex-1 overflow-y-auto p-6"

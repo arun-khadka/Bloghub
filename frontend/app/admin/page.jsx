@@ -33,9 +33,9 @@ import {
   ArrowRight,
   Loader2,
   AlertCircle,
-  User,
-  Calendar,
   TrendingUp,
+  Sparkles,
+  Flame,
 } from "lucide-react";
 
 // Chart configuration
@@ -48,12 +48,15 @@ const chartConfig = {
 
 export default function AdminDashboardPage() {
   const [dashboardData, setDashboardData] = useState(null);
-  const [articles, setArticles] = useState([]);
+  const [viewsData, setViewsData] = useState(null);
+  const [trendingArticles, setTrendingArticles] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [authorPerformance, setAuthorPerformance] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [timeRange, setTimeRange] = useState("daily");
 
-  // Fetch dashboard data
+  // Fetch all dashboard data
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
@@ -65,46 +68,87 @@ export default function AdminDashboardPage() {
         throw new Error("No authentication token found");
       }
 
-      // Fetch dashboard stats
-      const dashboardResponse = await fetch(
-        "http://127.0.0.1:8000/api/auth/admin/dashboard/",
-        {
+      // Fetch all data in parallel
+      const [
+        dashboardResponse,
+        viewsResponse,
+        trendingResponse,
+        recentActivityResponse,
+        authorsResponse
+      ] = await Promise.allSettled([
+        fetch("http://127.0.0.1:8000/api/auth/admin/dashboard/", {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-        }
-      );
+        }),
+        fetch("http://127.0.0.1:8000/api/blog/analytics/views/", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }),
+        fetch("http://127.0.0.1:8000/api/blog/analytics/articles/trending/", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }),
+        fetch("http://127.0.0.1:8000/api/blog/analytics/recent-activity/", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }),
+        fetch("http://127.0.0.1:8000/api/blog/analytics/authors/performance/", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        })
+      ]);
 
-      if (!dashboardResponse.ok) {
-        throw new Error(`Failed to fetch dashboard: ${dashboardResponse.status}`);
+      // Handle dashboard data
+      if (dashboardResponse.status === "fulfilled") {
+        const dashboardResult = await dashboardResponse.value.json();
+        if (dashboardResult.success && dashboardResult.data) {
+          setDashboardData(dashboardResult.data);
+        } else {
+          console.error("Dashboard API error:", dashboardResult.message);
+        }
       }
 
-      const dashboardData = await dashboardResponse.json();
-
-      if (dashboardData.success && dashboardData.data) {
-        setDashboardData(dashboardData.data);
-      } else {
-        throw new Error(dashboardData.message || "Failed to load dashboard data");
+      // Handle views analytics data
+      if (viewsResponse.status === "fulfilled") {
+        const viewsResult = await viewsResponse.value.json();
+        if (viewsResult) {
+          setViewsData(viewsResult);
+        }
       }
 
-      // Also fetch articles for trending and recent activity
-      try {
-        const articlesResponse = await fetch(
-          "http://127.0.0.1:8000/api/blog/list/"
-        );
-
-        if (articlesResponse.ok) {
-          const articlesData = await articlesResponse.json();
-          if (articlesData.success && Array.isArray(articlesData.data)) {
-            setArticles(articlesData.data);
-          } else if (Array.isArray(articlesData)) {
-            setArticles(articlesData);
-          }
+      // Handle recent activity
+      if (recentActivityResponse.status === "fulfilled") {
+        const recentActivityResult = await recentActivityResponse.value.json();
+        if (Array.isArray(recentActivityResult)) {
+          setRecentActivity(recentActivityResult);
         }
-      } catch (articlesError) {
-        console.warn("Failed to fetch articles:", articlesError);
-        // Continue without articles data
+      }
+
+      // Handle author performance
+      if (authorsResponse.status === "fulfilled") {
+        const authorsResult = await authorsResponse.value.json();
+        if (Array.isArray(authorsResult)) {
+          // Sort authors by total views and take top 5
+          const sortedAuthors = authorsResult
+            .sort((a, b) => b.total_views - a.total_views)
+            .slice(0, 5)
+            .map(author => ({
+              ...author,
+              // Add badge based on performance
+              badge: getAuthorBadge(author)
+            }));
+          setAuthorPerformance(sortedAuthors);
+        }
       }
 
     } catch (err) {
@@ -113,6 +157,14 @@ export default function AdminDashboardPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper function to assign badges based on author performance
+  const getAuthorBadge = (author) => {
+    if (author.total_views > 20) return "Top Performer";
+    if (author.total_views > 10) return "Consistent";
+    if (author.total_views > 5) return "Rising Star";
+    return "New Author";
   };
 
   useEffect(() => {
@@ -125,10 +177,11 @@ export default function AdminDashboardPage() {
       return {
         totalUsers: 0,
         totalArticles: 0,
-        totalComments: 0, // Not available in current API
-        totalViews: 0,
+        totalComments: 0,
+        totalViews: viewsData?.total_views || 0,
         publishedArticles: 0,
         draftArticles: 0,
+        averageViews: viewsData?.average_views || 0,
       };
     }
 
@@ -136,17 +189,19 @@ export default function AdminDashboardPage() {
       totalUsers: dashboardData.users?.total || 0,
       totalArticles: dashboardData.articles?.total || 0,
       totalComments: 0, // This would come from a comments API
-      totalViews: dashboardData.articles?.total_views || 0,
+      totalViews: viewsData?.total_views || 0,
       publishedArticles: dashboardData.articles?.published || 0,
       draftArticles: dashboardData.articles?.draft || 0,
+      averageViews: viewsData?.average_views || 0,
     };
   };
 
   const kpis = calculateKPIs();
 
-  // Generate chart data based on time range
+  // Generate chart data based on time range using views data
   const generateChartData = () => {
     const baseViews = kpis.totalViews || 0;
+    const mostViewed = viewsData?.most_viewed || [];
 
     if (timeRange === "daily") {
       return Array.from({ length: 7 }, (_, i) => {
@@ -154,13 +209,19 @@ export default function AdminDashboardPage() {
         date.setDate(date.getDate() - (6 - i));
         const dayName = date.toLocaleDateString("en-US", { weekday: "short" });
 
-        // Distribute views across days with some variation
-        const dailyShare = [0.1, 0.15, 0.2, 0.25, 0.15, 0.1, 0.05];
-        const views = Math.floor(baseViews * dailyShare[i] * (0.8 + Math.random() * 0.4));
+        // Use real data from most_viewed articles if available
+        let dailyViews = 0;
+        if (mostViewed[i]) {
+          dailyViews = mostViewed[i].view_count || 0;
+        } else {
+          // Fallback to calculated distribution
+          const dailyShare = [0.1, 0.15, 0.2, 0.25, 0.15, 0.1, 0.05];
+          dailyViews = Math.floor(baseViews * dailyShare[i] * (0.8 + Math.random() * 0.4));
+        }
 
         return {
           day: dayName,
-          views: views || Math.floor(Math.random() * 1000) + 500,
+          views: dailyViews || Math.floor(Math.random() * 100) + 50,
         };
       });
     }
@@ -169,13 +230,13 @@ export default function AdminDashboardPage() {
       return Array.from({ length: 4 }, (_, i) => {
         const weekLabel = `Week ${i + 1}`;
         
-        // Weekly growth pattern
+        // Distribute views across weeks
         const weeklyShare = [0.15, 0.25, 0.35, 0.25];
-        const views = Math.floor(baseViews * weeklyShare[i] * (0.7 + Math.random() * 0.6));
+        const weeklyViews = Math.floor(baseViews * weeklyShare[i] * (0.7 + Math.random() * 0.6));
 
         return {
           label: weekLabel,
-          views: views || 15000 + i * 5000,
+          views: weeklyViews || 500 + i * 200,
         };
       });
     }
@@ -185,122 +246,105 @@ export default function AdminDashboardPage() {
       const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
       const monthName = monthNames[i];
       
-      // Monthly growth pattern
+      // Distribute views across months
       const monthlyShare = [0.1, 0.15, 0.2, 0.25, 0.2, 0.1];
-      const views = Math.floor(baseViews * monthlyShare[i] * (0.6 + Math.random() * 0.8));
+      const monthlyViews = Math.floor(baseViews * monthlyShare[i] * (0.6 + Math.random() * 0.8));
 
       return {
         label: monthName,
-        views: views || 400000 + i * 40000,
+        views: monthlyViews || 1000 + i * 400,
       };
     });
   };
 
   const chartData = generateChartData();
 
-  // Get trending articles (most viewed)
-  const getTrendingArticles = () => {
-    if (!articles || articles.length === 0) {
-      // Fallback mock data if no articles
-      return [
-        {
-          id: 1,
-          title: "AI is transforming local communities",
-          views: "4,203",
-          change: "+18%",
-        },
-        {
-          id: 2,
-          title: "How to stay healthy in a busy city",
-          views: "3,987",
-          change: "+11%",
-        },
-        {
-          id: 3,
-          title: "The rise of community-driven journalism",
-          views: "3,102",
-          change: "+7%",
-        },
-      ];
+  // Get formatted recent activity from API data
+  const getFormattedRecentActivity = () => {
+    const activities = [];
+
+    // Add recent activity from API
+    if (recentActivity.length > 0) {
+      const mostRecent = recentActivity[0];
+      activities.push({
+        id: 1,
+        type: "new_article",
+        title: `New article published: "${mostRecent.title}"`,
+        meta: `By ${mostRecent.author_name} in ${mostRecent.category_name}`,
+        time: "Recently",
+        icon: FileText
+      });
     }
 
-    return articles
-      .sort((a, b) => (b.view_count || 0) - (a.view_count || 0))
-      .slice(0, 3)
-      .map((article) => {
-        const views = article.view_count || 0;
-        return {
-          id: article.id,
-          title: article.title,
-          views: views.toLocaleString(),
-          change: "+" + Math.floor(Math.random() * 20) + "%",
-        };
-      });
-  };
-
-  const trendingArticles = getTrendingArticles();
-
-  // Get recent activity
-  const getRecentActivity = () => {
-    const activities = [
-      {
-        id: 1,
-        type: "view_spike",
-        title: `Platform has ${kpis.totalViews.toLocaleString()} total views`,
-        meta: `${dashboardData?.articles?.today_created || 0} new articles today`,
-        time: "Just now",
-      },
-      {
+    // Add view analytics activity
+    if (viewsData) {
+      activities.push({
         id: 2,
-        type: "new_article",
-        title: `${kpis.totalArticles} articles published in total`,
-        meta: `${kpis.publishedArticles} published · ${kpis.draftArticles} drafts`,
-        time: "Today",
-      },
-      {
-        id: 3,
-        type: "new_user",
-        title: `${kpis.totalUsers} total users registered`,
-        meta: `${dashboardData?.users?.admins || 0} admins · ${dashboardData?.users?.authors || 0} authors`,
-        time: "Today",
-      },
-      {
+        type: "view_analytics",
+        title: `Total platform views: ${kpis.totalViews.toLocaleString()}`,
+        meta: `Average ${kpis.averageViews.toFixed(1)} views per article`,
+        time: "Updated",
+        icon: Eye
+      });
+
+      if (viewsData.most_viewed && viewsData.most_viewed.length > 0) {
+        const topArticle = viewsData.most_viewed[0];
+        activities.push({
+          id: 3,
+          type: "top_article",
+          title: `Top article: "${topArticle.title}"`,
+          meta: `${topArticle.view_count} views · ${topArticle.category_name}`,
+          time: "Current",
+          icon: Flame
+        });
+      }
+    }
+
+    // Add user stats activity
+    if (dashboardData?.users) {
+      activities.push({
         id: 4,
-        type: "engagement",
-        title: "Platform engagement growing",
-        meta: `${dashboardData?.users?.new_last_7_days || 0} new users in last 7 days`,
+        type: "user_growth",
+        title: `${dashboardData.users.total} total users`,
+        meta: `${dashboardData.users.new_last_7_days || 0} new users in last 7 days`,
         time: "This week",
-      },
-    ];
+        icon: Users
+      });
+    }
+
+    // Add article stats activity
+    if (dashboardData?.articles) {
+      activities.push({
+        id: 5,
+        type: "article_stats",
+        title: `${dashboardData.articles.total} total articles`,
+        meta: `${dashboardData.articles.published} published · ${dashboardData.articles.draft} drafts`,
+        time: "Current",
+        icon: TrendingUp
+      });
+    }
 
     return activities;
   };
 
-  const recentActivity = getRecentActivity();
+  const formattedRecentActivity = getFormattedRecentActivity();
 
-  // Get author performance (mock data for now)
-  const getAuthorPerformance = () => {
-    return [
-      {
-        id: 1,
-        name: "Arun Khadka",
-        articles: 14,
-        views: "18,243",
-        comments: "1,204",
-        badge: "Top Author",
-      },
-      {
-        id: 2,
-        name: "Anish Shrestha",
-        articles: 1,
-        views: "1,329",
-        comments: "98",
-        badge: "Rising Star",
-      },
-    ];
+  // Get most viewed articles from views data
+  const getMostViewedArticles = () => {
+    if (!viewsData?.most_viewed || viewsData.most_viewed.length === 0) {
+      return [];
+    }
+
+    return viewsData.most_viewed.slice(0, 5).map(article => ({
+      id: article.id,
+      title: article.title,
+      views: article.view_count?.toLocaleString() || "0",
+      author: article.author_name,
+      category: article.category_name
+    }));
   };
 
-  const authorPerformance = getAuthorPerformance();
+  const mostViewedArticles = getMostViewedArticles();
 
   const kpiCards = [
     {
@@ -325,7 +369,7 @@ export default function AdminDashboardPage() {
       label: "Total Views",
       value: kpis.totalViews.toLocaleString(),
       icon: Eye,
-      description: "All-time views",
+      description: `Avg: ${kpis.averageViews.toFixed(1)} per article`,
     },
   ];
 
@@ -475,9 +519,7 @@ export default function AdminDashboardPage() {
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Avg. Views</span>
                   <Badge variant="outline">
-                    {dashboardData?.articles?.total && dashboardData?.articles?.total_views
-                      ? Math.round(dashboardData.articles.total_views / dashboardData.articles.total)
-                      : 0}
+                    {kpis.averageViews.toFixed(1)}
                   </Badge>
                 </div>
               </div>
@@ -490,35 +532,41 @@ export default function AdminDashboardPage() {
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-1">
           <CardHeader>
-            <CardTitle className="text-base">Trending Content</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Flame className="h-4 w-4" />
+              Most Viewed Articles
+            </CardTitle>
             <CardDescription>
-              Most viewed articles and popular content.
+              Top performing articles by view count
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="space-y-3">
-              <p className="text-xs font-medium text-muted-foreground">
-                Trending articles
-              </p>
               <div className="space-y-2">
-                {trendingArticles.map((article) => (
-                  <div
-                    key={article.id}
-                    className="flex items-center justify-between rounded-lg border bg-muted/40 px-3 py-2"
-                  >
-                    <div className="flex flex-col flex-1">
-                      <span className="line-clamp-1 text-xs font-medium">
-                        {article.title}
-                      </span>
-                      <span className="text-[11px] text-muted-foreground">
-                        {article.views} views
-                      </span>
+                {mostViewedArticles.length > 0 ? (
+                  mostViewedArticles.map((article) => (
+                    <div
+                      key={article.id}
+                      className="flex items-center justify-between rounded-lg border bg-muted/40 px-3 py-2"
+                    >
+                      <div className="flex flex-col flex-1">
+                        <span className="line-clamp-1 text-xs font-medium">
+                          {article.title}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">
+                          {article.views} views · {article.author}
+                        </span>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] ml-2">
+                        {article.category}
+                      </Badge>
                     </div>
-                    <Badge variant="outline" className="text-[10px] ml-2">
-                      {article.change}
-                    </Badge>
+                  ))
+                ) : (
+                  <div className="text-center py-4 text-sm text-muted-foreground">
+                    No view data available
                   </div>
-                ))}
+                )}
               </div>
             </div>
 
@@ -565,6 +613,16 @@ export default function AdminDashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
+            <div className="mb-4 grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <span className="text-sm text-muted-foreground">Total Views</span>
+                <p className="text-2xl font-bold">{kpis.totalViews.toLocaleString()}</p>
+              </div>
+              <div className="space-y-1">
+                <span className="text-sm text-muted-foreground">Avg per Article</span>
+                <p className="text-2xl font-bold">{kpis.averageViews.toFixed(1)}</p>
+              </div>
+            </div>
             <ChartContainer config={chartConfig}>
               {timeRange === "daily" ? (
                 <BarChart data={chartData}>
@@ -654,30 +712,47 @@ export default function AdminDashboardPage() {
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="text-base">Platform Overview</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Sparkles className="h-4 w-4" />
+              Recent Activity
+            </CardTitle>
             <CardDescription>
-              Current platform status and recent updates.
+              Latest platform updates and activities
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {recentActivity.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-start justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2"
-              >
-                <div className="flex flex-col gap-1 flex-1">
-                  <p className="text-xs font-medium leading-snug">
-                    {item.title}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {item.meta}
-                  </p>
-                </div>
-                <span className="shrink-0 text-[11px] text-muted-foreground">
-                  {item.time}
-                </span>
+            {formattedRecentActivity.length > 0 ? (
+              formattedRecentActivity.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div
+                    key={item.id}
+                    className="flex items-start justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 mt-0.5">
+                        <Icon className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="flex flex-col gap-1 flex-1">
+                        <p className="text-xs font-medium leading-snug">
+                          {item.title}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {item.meta}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-[11px] text-muted-foreground">
+                      {item.time}
+                    </span>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="text-center py-8 text-sm text-muted-foreground">
+                No recent activity
               </div>
-            ))}
+            )}
           </CardContent>
         </Card>
 
@@ -685,26 +760,35 @@ export default function AdminDashboardPage() {
           <CardHeader>
             <CardTitle className="text-base">Author Performance</CardTitle>
             <CardDescription>
-              Top-performing authors by content and engagement.
+              Top-performing authors by content and engagement
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {authorPerformance.map((author) => (
-              <div
-                key={author.id}
-                className="flex items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2"
-              >
-                <div className="flex flex-col gap-0.5 flex-1">
-                  <span className="text-xs font-medium">{author.name}</span>
-                  <span className="text-[11px] text-muted-foreground">
-                    {author.articles} articles · {author.views} views
-                  </span>
+            {authorPerformance.length > 0 ? (
+              authorPerformance.map((author) => (
+                <div
+                  key={author.author_id}
+                  className="flex items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2"
+                >
+                  <div className="flex flex-col gap-0.5 flex-1">
+                    <span className="text-xs font-medium">{author.author_name}</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {author.total_articles} articles · {author.total_views} views
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      Avg: {author.avg_views?.toFixed(1) || "0"} views/article
+                    </span>
+                  </div>
+                  <Badge variant="secondary" className="text-[10px] px-2 py-0.5 shrink-0">
+                    {author.badge}
+                  </Badge>
                 </div>
-                <Badge variant="secondary" className="text-[10px] px-2 py-0.5 shrink-0">
-                  {author.badge}
-                </Badge>
+              ))
+            ) : (
+              <div className="text-center py-8 text-sm text-muted-foreground">
+                No author performance data
               </div>
-            ))}
+            )}
           </CardContent>
         </Card>
       </div>

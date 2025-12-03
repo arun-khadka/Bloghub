@@ -1,4 +1,12 @@
 from django.urls import path
+
+from .analytics_views import (
+    AuthorPerformanceAPIView,
+    RecentActivityAPIView,
+    TrendingArticlesAPIView,
+    ViewAnalyticsAPIView,
+)
+
 from .views import (
     ArticleCreateView,
     ArticleDeleteByIdView,
@@ -29,14 +37,38 @@ urlpatterns = [
         name="articles-by-author",
     ),
     # Article operations by ID
-    path("retrieve/<int:article_id>/", ArticleRetrieveView.as_view(), name="article-retrieve"),
+    path(
+        "retrieve/<int:article_id>/",
+        ArticleRetrieveView.as_view(),
+        name="article-retrieve",
+    ),
     path(
         "<int:article_id>/increment-views/",
         IncrementArticleViews.as_view(),
         name="increment-article-views",
     ),
     # Update & Delete by ID
-    path("update/<int:article_id>/", ArticleUpdateView.as_view(), name="article-update"),
+    path(
+        "update/<int:article_id>/", ArticleUpdateView.as_view(), name="article-update"
+    ),
     path("delete/<int:id>/", ArticleDeleteByIdView.as_view(), name="article-delete"),
     path("<slug:slug>/", ArticleDetailView.as_view(), name="article-detail-slug"),
+
+    
+    path("analytics/views/", ViewAnalyticsAPIView.as_view(), name="view-analytics"),
+    path(
+        "analytics/articles/trending/",
+        TrendingArticlesAPIView.as_view(),
+        name="trending-articles",
+    ),
+    path(
+        "analytics/recent-activity/",
+        RecentActivityAPIView.as_view(),
+        name="recent-activity",
+    ),
+    path(
+        "analytics/authors/performance/",
+        AuthorPerformanceAPIView.as_view(),
+        name="author-performance",
+    ),
 ]
