@@ -33,7 +33,6 @@ import {
   Trash2,
   X,
   Save,
-  Filter,
   AlertTriangle,
   ChevronLeft,
   ChevronRight,

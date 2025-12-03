@@ -10,21 +10,6 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  LineChart,
-  Line,
-} from "recharts";
 import {
   Users,
   FileText,
@@ -37,24 +22,16 @@ import {
   Sparkles,
   Flame,
 } from "lucide-react";
-
-// Chart configuration
-const chartConfig = {
-  views: {
-    label: "Views",
-    color: "hsl(var(--chart-1))",
-  },
-};
+import ViewAnalyticsChart from "./ViewAnalyticsChart";
 
 export default function AdminDashboardPage() {
   const [dashboardData, setDashboardData] = useState(null);
   const [viewsData, setViewsData] = useState(null);
-  const [trendingArticles, setTrendingArticles] = useState([]);
+  const [trendingArticles, setTrendingArticles] = useState([]); // Add this state
   const [recentActivity, setRecentActivity] = useState([]);
   const [authorPerformance, setAuthorPerformance] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [timeRange, setTimeRange] = useState("daily");
 
   // Fetch all dashboard data
   const fetchDashboardData = async () => {
@@ -68,11 +45,11 @@ export default function AdminDashboardPage() {
         throw new Error("No authentication token found");
       }
 
-      // Fetch all data in parallel
+      // Fetch all data in parallel - FIXED: 5 API calls, 5 variables
       const [
         dashboardResponse,
         viewsResponse,
-        trendingResponse,
+        trendingResponse, // This was missing!
         recentActivityResponse,
         authorsResponse
       ] = await Promise.allSettled([
@@ -123,6 +100,14 @@ export default function AdminDashboardPage() {
         const viewsResult = await viewsResponse.value.json();
         if (viewsResult) {
           setViewsData(viewsResult);
+        }
+      }
+
+      // Handle trending articles - THIS WAS MISSING!
+      if (trendingResponse.status === "fulfilled") {
+        const trendingResult = await trendingResponse.value.json();
+        if (Array.isArray(trendingResult)) {
+          setTrendingArticles(trendingResult);
         }
       }
 
@@ -188,7 +173,7 @@ export default function AdminDashboardPage() {
     return {
       totalUsers: dashboardData.users?.total || 0,
       totalArticles: dashboardData.articles?.total || 0,
-      totalComments: 0, // This would come from a comments API
+      totalComments: 0, 
       totalViews: viewsData?.total_views || 0,
       publishedArticles: dashboardData.articles?.published || 0,
       draftArticles: dashboardData.articles?.draft || 0,
@@ -197,67 +182,6 @@ export default function AdminDashboardPage() {
   };
 
   const kpis = calculateKPIs();
-
-  // Generate chart data based on time range using views data
-  const generateChartData = () => {
-    const baseViews = kpis.totalViews || 0;
-    const mostViewed = viewsData?.most_viewed || [];
-
-    if (timeRange === "daily") {
-      return Array.from({ length: 7 }, (_, i) => {
-        const date = new Date();
-        date.setDate(date.getDate() - (6 - i));
-        const dayName = date.toLocaleDateString("en-US", { weekday: "short" });
-
-        // Use real data from most_viewed articles if available
-        let dailyViews = 0;
-        if (mostViewed[i]) {
-          dailyViews = mostViewed[i].view_count || 0;
-        } else {
-          // Fallback to calculated distribution
-          const dailyShare = [0.1, 0.15, 0.2, 0.25, 0.15, 0.1, 0.05];
-          dailyViews = Math.floor(baseViews * dailyShare[i] * (0.8 + Math.random() * 0.4));
-        }
-
-        return {
-          day: dayName,
-          views: dailyViews || Math.floor(Math.random() * 100) + 50,
-        };
-      });
-    }
-
-    if (timeRange === "weekly") {
-      return Array.from({ length: 4 }, (_, i) => {
-        const weekLabel = `Week ${i + 1}`;
-        
-        // Distribute views across weeks
-        const weeklyShare = [0.15, 0.25, 0.35, 0.25];
-        const weeklyViews = Math.floor(baseViews * weeklyShare[i] * (0.7 + Math.random() * 0.6));
-
-        return {
-          label: weekLabel,
-          views: weeklyViews || 500 + i * 200,
-        };
-      });
-    }
-
-    // Monthly data
-    return Array.from({ length: 6 }, (_, i) => {
-      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
-      const monthName = monthNames[i];
-      
-      // Distribute views across months
-      const monthlyShare = [0.1, 0.15, 0.2, 0.25, 0.2, 0.1];
-      const monthlyViews = Math.floor(baseViews * monthlyShare[i] * (0.6 + Math.random() * 0.8));
-
-      return {
-        label: monthName,
-        views: monthlyViews || 1000 + i * 400,
-      };
-    });
-  };
-
-  const chartData = generateChartData();
 
   // Get formatted recent activity from API data
   const getFormattedRecentActivity = () => {
@@ -276,10 +200,23 @@ export default function AdminDashboardPage() {
       });
     }
 
+    // Add trending articles activity
+    if (trendingArticles.length > 0) {
+      const trendingArticle = trendingArticles[0];
+      activities.push({
+        id: 2,
+        type: "trending_article",
+        title: `Trending article: "${trendingArticle.title}"`,
+        meta: `${trendingArticle.view_count} views this week`,
+        time: "Hot",
+        icon: Flame
+      });
+    }
+
     // Add view analytics activity
     if (viewsData) {
       activities.push({
-        id: 2,
+        id: 3,
         type: "view_analytics",
         title: `Total platform views: ${kpis.totalViews.toLocaleString()}`,
         meta: `Average ${kpis.averageViews.toFixed(1)} views per article`,
@@ -290,12 +227,12 @@ export default function AdminDashboardPage() {
       if (viewsData.most_viewed && viewsData.most_viewed.length > 0) {
         const topArticle = viewsData.most_viewed[0];
         activities.push({
-          id: 3,
+          id: 4,
           type: "top_article",
           title: `Top article: "${topArticle.title}"`,
-          meta: `${topArticle.view_count} views · ${topArticle.category_name}`,
-          time: "Current",
-          icon: Flame
+          meta: `${topArticle.view_count} total views · ${topArticle.category_name}`,
+          time: "All-time",
+          icon: TrendingUp
         });
       }
     }
@@ -303,7 +240,7 @@ export default function AdminDashboardPage() {
     // Add user stats activity
     if (dashboardData?.users) {
       activities.push({
-        id: 4,
+        id: 5,
         type: "user_growth",
         title: `${dashboardData.users.total} total users`,
         meta: `${dashboardData.users.new_last_7_days || 0} new users in last 7 days`,
@@ -315,12 +252,12 @@ export default function AdminDashboardPage() {
     // Add article stats activity
     if (dashboardData?.articles) {
       activities.push({
-        id: 5,
+        id: 6,
         type: "article_stats",
         title: `${dashboardData.articles.total} total articles`,
         meta: `${dashboardData.articles.published} published · ${dashboardData.articles.draft} drafts`,
         time: "Current",
-        icon: TrendingUp
+        icon: FileText
       });
     }
 
@@ -332,6 +269,16 @@ export default function AdminDashboardPage() {
   // Get most viewed articles from views data
   const getMostViewedArticles = () => {
     if (!viewsData?.most_viewed || viewsData.most_viewed.length === 0) {
+      // Fallback to trending articles if no most_viewed data
+      if (trendingArticles.length > 0) {
+        return trendingArticles.slice(0, 5).map(article => ({
+          id: article.id,
+          title: article.title,
+          views: article.view_count?.toLocaleString() || "0",
+          author: article.author_name,
+          category: article.category_name
+        }));
+      }
       return [];
     }
 
@@ -584,128 +531,7 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <CardTitle className="text-base">View Analytics</CardTitle>
-                <CardDescription>
-                  Track how your audience engages with content over time.
-                </CardDescription>
-              </div>
-              <Tabs
-                value={timeRange}
-                onValueChange={setTimeRange}
-                className="w-full sm:w-auto"
-              >
-                <TabsList className="grid h-8 w-full grid-cols-3">
-                  <TabsTrigger value="daily" className="text-xs">
-                    Daily
-                  </TabsTrigger>
-                  <TabsTrigger value="weekly" className="text-xs">
-                    Weekly
-                  </TabsTrigger>
-                  <TabsTrigger value="monthly" className="text-xs">
-                    Monthly
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="mb-4 grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <span className="text-sm text-muted-foreground">Total Views</span>
-                <p className="text-2xl font-bold">{kpis.totalViews.toLocaleString()}</p>
-              </div>
-              <div className="space-y-1">
-                <span className="text-sm text-muted-foreground">Avg per Article</span>
-                <p className="text-2xl font-bold">{kpis.averageViews.toFixed(1)}</p>
-              </div>
-            </div>
-            <ChartContainer config={chartConfig}>
-              {timeRange === "daily" ? (
-                <BarChart data={chartData}>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    vertical={false}
-                    strokeOpacity={0.5}
-                  />
-                  <XAxis dataKey="day" tickLine={false} axisLine={false} />
-                  <YAxis
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(value) =>
-                      value >= 1000 ? `${Math.round(value / 1000)}k` : value
-                    }
-                  />
-                  <ChartTooltip
-                    cursor={{ fill: "hsl(var(--muted))" }}
-                    content={<ChartTooltipContent />}
-                  />
-                  <Bar
-                    dataKey="views"
-                    fill="var(--color-views)"
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              ) : timeRange === "weekly" ? (
-                <LineChart data={chartData}>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    vertical={false}
-                    strokeOpacity={0.5}
-                  />
-                  <XAxis dataKey="label" tickLine={false} axisLine={false} />
-                  <YAxis
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(value) =>
-                      value >= 1000 ? `${Math.round(value / 1000)}k` : value
-                    }
-                  />
-                  <ChartTooltip
-                    cursor={{ stroke: "hsl(var(--muted-foreground))" }}
-                    content={<ChartTooltipContent />}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="views"
-                    stroke="var(--color-views)"
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                    activeDot={{ r: 5 }}
-                  />
-                </LineChart>
-              ) : (
-                <BarChart data={chartData}>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    vertical={false}
-                    strokeOpacity={0.5}
-                  />
-                  <XAxis dataKey="label" tickLine={false} axisLine={false} />
-                  <YAxis
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(value) =>
-                      value >= 1000 ? `${Math.round(value / 1000)}k` : value
-                    }
-                  />
-                  <ChartTooltip
-                    cursor={{ fill: "hsl(var(--muted))" }}
-                    content={<ChartTooltipContent />}
-                  />
-                  <Bar
-                    dataKey="views"
-                    fill="var(--color-views)"
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              )}
-            </ChartContainer>
-          </CardContent>
-        </Card>
+        <ViewAnalyticsChart/>        
       </div>
 
       {/* Recent activity & authors */}

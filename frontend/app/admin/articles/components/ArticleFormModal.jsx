@@ -36,7 +36,6 @@ export default function ArticleFormModal({
   const [originalImage, setOriginalImage] = useState("");
   const [isAtTop, setIsAtTop] = useState(true);
   const [isAtBottom, setIsAtBottom] = useState(false);
-  const [formErrors, setFormErrors] = useState({});
 
   useEffect(() => {
     if (editingArticle && editingArticle.featured_image) {
