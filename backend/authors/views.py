@@ -61,8 +61,6 @@ class AuthorCreateView(APIView):
         )
 
 
-
-
 # -------------------------
 # AUTHOR RETRIEVE BY USER ID
 # -------------------------

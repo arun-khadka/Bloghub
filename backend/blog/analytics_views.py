@@ -11,7 +11,7 @@ from datetime import timedelta
 
 
 class ViewAnalyticsAPIView(APIView):
-    # permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAdminUser]
 
     def get(self, request):
         try:
@@ -61,7 +61,7 @@ class TrendingArticlesAPIView(APIView):
 
 
 class RecentActivityAPIView(APIView):
-    # permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAdminUser]
 
     def get(self, request):
         try:
@@ -83,7 +83,7 @@ class RecentActivityAPIView(APIView):
 
 
 class AuthorPerformanceAPIView(APIView):
-    # permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAdminUser]
 
     def get(self, request):
         try:

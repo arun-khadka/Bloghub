@@ -361,13 +361,6 @@ export default function MyArticlesPage() {
                 />
                 Refresh
               </button>
-              <button
-                onClick={handleCreateArticle}
-                className="flex items-center gap-2 px-6 py-3 bg-primary shadow-md hover:shadow-blue-400 text-primary-foreground rounded-lg transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Create New Article
-              </button>
             </div>
           </div>
 
